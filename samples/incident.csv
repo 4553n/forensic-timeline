@@ -1,0 +1,14 @@
+timestamp,end,title,description,category,source,machine,confidence
+2026-10-09T08:41:00Z,2026-10-09T09:03:00Z,Phishing wave delivered to 14 employees,Spoofed invoice-themed emails with macro-enabled attachment.,initial-access,Email gateway,EXCH-01,confirmed
+2026-10-09T08:52:00Z,,Employee J. Meyer opened invoice-q3.xlsm,Attachment opened on WKSTN-114; macros enabled after prompt.,initial-access,Outlook PST,WKSTN-114,confirmed
+2026-10-09T09:01:00Z,,Excel spawned powershell.exe,Macro executed a decoded PowerShell command via WinRM.,execution,Sysmon EID 1,WKSTN-114,confirmed
+2026-10-09T09:14:00Z,,Scheduled task 'OneDriveSync' created,Persistence via daily task at 09:00 under the user context.,execution,Windows Security Log 4698,WKSTN-114,confirmed
+2026-10-09T09:02:30Z,2026-10-11T06:00:00Z,Beaconing to C2 domain api-update-cdn[.]net,Regular 60-second interval beacons from WKSTN-114.,c2,EDR telemetry,WKSTN-114,probable
+2026-10-09T13:20:00Z,,Active Directory enumeration (BloodHound),SharpHound collection observed from WKSTN-114.,lateral,Sysmon EID 1,WKSTN-114,probable
+2026-10-09T14:05:00Z,2026-10-09T15:10:00Z,Authentication spray against SRV-FS-02,"~240 failed logons across 12 accounts.",lateral,Windows Security Log 4625,SRV-FS-02,uncertain
+2026-10-10T02:11:00Z,,Valid credentials used on SRV-FS-02 (jmeyer),First successful interactive logon outside business hours.,lateral,Windows Security Log 4624,SRV-FS-02,confirmed
+2026-10-10T09:40:00Z,,HR database dump staged in C:\Temp,hr_dump.sql created on SRV-FS-02 (compressed 2.3 GB).,exfil,Sysmon EID 11,SRV-FS-02,confirmed
+2026-10-10T10:02:00Z,2026-10-10T11:52:00Z,Outbound transfer to 203.0.113.11 (2.3 GB),Sustained HTTPS upload well above baseline.,exfil,Perimeter firewall,SRV-FS-02,probable
+2026-10-11T07:30:00Z,,EDR alert triggered — investigation started,Behavioral rule matched staged dump + long beacon session.,containment,EDR,,confirmed
+2026-10-11T10:26:00Z,2026-10-11T13:30:00Z,WKSTN-114 isolated and reimaged,Forensic image captured then rebuilt from gold image.,containment,IR log,WKSTN-114,confirmed
+2026-10-12T14:30:00Z,2026-10-13T18:00:00Z,MFA enrollment completed for remote users,Conditional Access enforced for all external access.,containment,Entra ID sign-in logs,,probable

@@ -1,0 +1,3174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forensic Timeline Visualizer</title>
+<style>
+:root, body[data-theme="light"]{
+  --bg:#f4f5f7; --panel:#ffffff; --fg:#1b1f24; --muted:#69707a; --border:#d8dde3;
+  --accent:#2563eb; --chip:#eef1f5; --grid:#e3e7ec; --axis:#98a1ab; --warn:#b07d10; --err:#c0392b;
+}
+body[data-theme="dark"]{
+  --bg:#0f1317; --panel:#191f26; --fg:#e7eaee; --muted:#98a1ab; --border:#2c343e;
+  --accent:#5b9bf8; --chip:#212932; --grid:#262e38; --axis:#6c7580; --warn:#d3a13c; --err:#e06a5e;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--fg);display:flex;flex-direction:column}
+button{font:inherit;font-size:13px;color:var(--fg);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--axis)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);border-color:transparent;color:#fff}
+button.primary:hover{filter:brightness(1.08);border-color:transparent}
+button.on{background:var(--accent);border-color:transparent;color:#fff}
+button.mini{padding:3px 8px;font-size:12px}
+input,select,textarea{font:inherit;font-size:13px;color:var(--fg);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:6px 8px;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input[type="color"]{padding:1px;width:38px;height:27px;cursor:pointer}
+input[type="checkbox"]{width:auto;accent-color:var(--accent)}
+label.field{display:block;font-size:11px;color:var(--muted);margin:9px 0 3px;text-transform:uppercase;letter-spacing:.05em}
+#toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
+.tb-group{display:flex;gap:6px;align-items:center;padding-right:10px;border-right:1px solid var(--border)}
+.tb-group:last-child{border-right:none}
+.brand{font-size:14px;letter-spacing:.04em;color:var(--muted);margin-right:2px}
+.ver{font-size:10.5px;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:2px 8px;letter-spacing:.03em;font-variant-numeric:tabular-nums}
+.machrow{display:grid;grid-template-columns:26px 1fr auto;gap:7px;align-items:center;margin-bottom:6px}
+.machrow input[type="color"]{width:22px;height:22px;padding:0;border:1px solid var(--border);border-radius:5px;background:transparent;cursor:pointer}
+.machrow .mname{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selwrap{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+.zoominfo{font-size:11px;color:var(--muted);min-width:46px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+.selwrap select{width:auto;padding:4px 6px;font-size:12px}
+#grpRange input[type=datetime-local]{width:158px;font-size:11.5px;padding:3px 5px;color:var(--fg);
+  background:var(--panel);border:1px solid var(--border);border-radius:5px}
+#grpTz input[type=text]{width:150px;font-size:11.5px;padding:3px 6px;color:var(--fg);
+  background:var(--panel);border:1px solid var(--border);border-radius:5px}
+#grpTz .selwrap{gap:5px}
+#main{flex:1;display:flex;min-height:0}
+#stage{flex:1;overflow:auto;padding:26px;display:flex;justify-content:center;align-items:flex-start}
+#report{width:100%;max-width:1340px}
+#report svg{display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09)}
+#report.panning{cursor:grabbing}
+#report.panning svg{cursor:grabbing}
+#editor{width:384px;background:var(--panel);border-left:1px solid var(--border);overflow-y:auto;padding:14px 16px 40px;flex:none}
+#editor.collapsed{display:none}
+.ed-sec{margin-bottom:20px}
+.ed-sec h3{margin:0 0 9px;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.rowflex{display:flex;gap:8px}
+.rowflex>*{flex:1}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;padding:4px 6px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap}
+th:hover{color:var(--fg)}
+td{padding:5px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+tr.evrow{cursor:pointer}
+tr.evrow:hover td{background:var(--chip)}
+tr.evrow.sel td{background:var(--chip)}
+td.ev-time{color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+td.ev-title{word-break:break-word}
+.catdot{display:inline-block;width:9px;height:9px;border-radius:2.5px;margin-right:5px;vertical-align:0}
+.catrow{display:flex;gap:6px;align-items:center;margin-bottom:7px}
+.catrow input[type="text"]{flex:1;padding:4px 7px;font-size:12.5px}
+.catrow .cnt{font-size:11px;color:var(--muted);min-width:24px;text-align:right}
+.conf-confirmed{color:var(--fg)}
+.conf-probable{color:var(--warn)}
+.conf-uncertain{color:var(--muted);font-style:italic}
+.rolemark{display:inline-block;min-width:13px;margin-right:5px;border-radius:3px;font-size:10px;font-weight:700;line-height:13px;text-align:center;vertical-align:1px}
+.role-fraud{background:#E53935;color:#fff}
+.role-mile{background:#FFD34D;color:#5a4500}
+#evForm label.field{margin-top:8px}
+#evFormSec{border-radius:8px}
+#evFormSec.flash{animation:edflash 1.3s ease}
+@keyframes edflash{0%,22%{background:var(--chip)}100%{background:transparent}}
+.malswitch{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--border);
+  border-radius:8px;background:var(--bg);cursor:pointer;user-select:none}
+.malswitch:hover{border-color:var(--err)}
+.malswitch.on{border-color:#E53935;background:rgba(229,57,53,.09)}
+.malswitch input[type=checkbox]{width:15px;height:15px;accent-color:#E53935;cursor:pointer;margin:0;flex:none}
+.malswitch .mlabel{font-size:12.5px;font-weight:600;color:var(--fg)}
+.malswitch .mdot{width:11px;height:11px;border-radius:50%;background:var(--border);margin-left:auto;flex:none}
+.malswitch.on .mdot{background:#E53935}
+tr.evrow.mal td:first-child{box-shadow:inset 3px 0 0 #E53935}
+.btnrow{display:flex;gap:8px;margin-top:12px}
+.btnrow button{flex:1}
+.btnrow button.danger{color:var(--err)}
+.empty-note{font-size:12px;color:var(--muted);margin-top:10px}
+.hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.4}
+#tooltip{position:fixed;pointer-events:none;max-width:330px;background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:12.5px;box-shadow:0 8px 28px rgba(0,0,0,.2);display:none;z-index:50;line-height:1.5}
+#tooltip .tt-title{font-weight:600;margin-bottom:2px}
+#tooltip .tt-time{color:var(--muted);font-variant-numeric:tabular-nums}
+#tooltip .tt-desc{margin-top:4px}
+#tooltip .tt-meta{margin-top:6px;color:var(--muted);font-size:11.5px}
+#toasts{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:60;pointer-events:none}
+.toast{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--accent);padding:9px 15px;border-radius:8px;font-size:13px;box-shadow:0 6px 22px rgba(0,0,0,.16)}
+.toast.err{border-left-color:var(--err)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:40}
+#modal.hidden,#tab-paste.hidden,#tab-file.hidden,.hidden{display:none!important}
+.modal-card{width:min(720px,92vw);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:18px 20px}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.modal-head h2{margin:0;font-size:16px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab-body textarea{height:230px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+#dropzone{border:1.5px dashed var(--border);border-radius:9px;padding:38px 20px;text-align:center;color:var(--muted);font-size:13.5px;cursor:pointer}
+#dropzone.drag{border-color:var(--accent);color:var(--accent)}
+.filewrap{color:var(--accent);cursor:pointer}
+.filewrap input{display:none}
+#btnPasteImport{margin-top:10px}
+#importMsg{margin-top:12px;font-size:12.5px;line-height:1.6}
+#importMsg .imp-err{color:var(--err)}
+#importMsg .imp-warn{color:var(--warn)}
+#importMsg .imp-ok{color:var(--fg)}
+.imp-note{background:var(--chip);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:8px;padding:9px 12px;font-size:12.5px;line-height:1.55;margin-bottom:12px;color:var(--fg)}
+.imp-note code{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:0 4px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11.5px}
+@media print{
+  #toolbar,#editor,#tooltip,#toasts,#modal{display:none!important}
+  #stage{padding:0;overflow:visible}
+  body{background:#fff}
+  #report svg{box-shadow:none}
+}
+</style>
+</head>
+<body data-theme="light">
+<header id="toolbar">
+  <div class="tb-group"><span class="brand">FTV</span><span class="ver" id="verChip" title="Forensic Timeline Visualizer version">v1.14.0</span></div>
+  <div class="tb-group" id="grpTz">
+    <label class="selwrap" title="The timezone the whole timeline is read in. Choosing one recalculates every time on the chart.">
+      Zone
+      <select id="docTz"></select>
+    </label>
+    <input id="docTzCustom" type="text" class="hidden" placeholder="UTC+02:00 or Europe/Berlin">
+  </div>
+  <div class="tb-group">
+    <button id="btnImport" title="Import JSON / CSV / pasted data">Import</button>
+    <button id="btnDemo" title="Load the built-in demo incident">Demo</button>
+  </div>
+  <div class="tb-group" id="modeSwitch">
+    <button data-mode="swimlane" class="on" title="Lanes per category">Swimlane</button>
+    <button data-mode="milestones" title="Single axis with event cards">Milestones</button>
+    <button data-mode="density" title="Histogram plus detail band">Density</button>
+  </div>
+  <div class="tb-group" id="grpLanes">
+    <label class="selwrap" title="Swimlane lane grouping">Lanes
+      <select id="groupBy">
+        <option value="category">Category</option>
+        <option value="machine">Machine</option>
+      </select>
+    </label>
+  </div>
+  <div class="tb-group" id="grpLabels">
+    <label class="selwrap">Labels
+      <select id="labelMode" title="Label placement strategy">
+        <option value="auto">Auto</option>
+        <option value="labels">Always labels</option>
+        <option value="numbers">Numbered</option>
+        <option value="both">Both — labels and numbers</option>
+      </select>
+    </label>
+    <button id="btnTheme">Theme: Light</button>
+  </div>
+  <div class="tb-group" id="grpZoom">
+    <button id="btnZoomOut" title="Zoom out (widen the visible time range)">&#8722;</button>
+    <button id="btnZoomIn" title="Zoom in (narrow the visible time range around the events in view)">+</button>
+    <button id="btnFit" title="Show the whole timeline again">Fit</button>
+    <span id="zoomInfo" class="zoominfo" title="Current zoom level"></span>
+  </div>
+  <div class="tb-group" id="grpRange">
+    <label class="selwrap" title="Limit the timeline to a time range (in the timeline's timezone)">
+      Range
+      <input id="rngFrom" type="datetime-local" step="60" placeholder="from">
+      <input id="rngTo" type="datetime-local" step="60" placeholder="to">
+      <button id="btnRangeAll" title="Clear the range and show the whole timeline">All</button>
+    </label>
+  </div>
+  <div class="tb-group">
+    <button id="btnUndo" title="Undo last change (Ctrl+Z)">Undo</button>
+    <button id="btnEditor" title="Toggle editor panel">Editor</button>
+  </div>
+  <div class="tb-group">
+    <button id="btnPNG" class="primary" title="Export the timeline as a PNG image">Export PNG</button>
+    <button id="btnCopyImg" title="Copy image to clipboard">Copy image</button>
+  </div>
+  <div class="tb-group">
+    <button id="btnJSON" title="Export the timeline as a JSON file another analyst can import">Export JSON</button>
+    <button id="btnCopyJSON" title="Copy the timeline JSON to the clipboard">Copy JSON</button>
+  </div>
+</header>
+<div id="main">
+  <div id="stage"><div id="report"></div></div>
+  <aside id="editor">
+    <div class="ed-sec">
+      <h3>Report</h3>
+      <label class="field">Title</label>
+      <input id="docTitle" type="text">
+      <div class="row2">
+        <div><label class="field">Case ID</label><input id="docCase" type="text"></div>
+        <div><label class="field">Analyst</label><input id="docAnalyst" type="text"></div>
+      </div>
+      <div class="hint">The timezone the timeline is read in is set in the toolbar, under <b>Zone</b> — choosing one recalculates every time on the chart.</div>
+
+    </div>
+    <div class="ed-sec">
+      <h3>Categories <button id="btnAddCat" class="mini" title="Add a category (preset or custom)">Add</button></h3>
+      <div id="catList"></div>
+      <div id="catAddForm" class="hidden" style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+        <label class="field" style="margin-top:0">Category</label>
+        <select id="newCatPreset"></select>
+        <div id="customCatFields" class="row2 hidden" style="margin-top:9px">
+          <input id="newCatLabel" type="text" placeholder="Custom category name">
+          <input id="newCatColor" type="color" value="#2e6fb7" title="Category color">
+        </div>
+        <div class="btnrow">
+          <button type="button" class="primary" id="catAddOk">Add</button>
+          <button type="button" id="catAddCancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="ed-sec" id="machSec">
+      <h3>Machines</h3>
+      <div id="machList"></div>
+    </div>
+    <div class="ed-sec">
+      <h3>Events <button id="btnAddEvent" class="mini">Add</button></h3>
+      <table id="evTable">
+        <thead><tr>
+          <th title="Visible in timeline"></th>
+          <th data-sort="t">Time</th>
+          <th data-sort="title">Title</th>
+          <th data-sort="cat">Category</th>
+          <th data-sort="conf">Conf.</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="evEmptyNote" class="empty-note hidden">No events. Import data or add an event.</div>
+    </div>
+    <div class="ed-sec" id="evFormSec">
+      <h3 id="evFormTitle">Edit event</h3>
+      <form id="evForm">
+        <label class="malswitch" id="malWrap" for="fMal">
+          <input id="fMal" type="checkbox">
+          <span class="mlabel">Malicious — show this event in red</span>
+          <span class="mdot"></span>
+        </label>
+        <div class="hint">Red marks this one event as malicious, in every view. No category or machine may use red, so a red mark always means one specific event.</div>
+        <label class="field">Title</label>
+        <input id="fTitle" type="text" required>
+        <label class="field">Timestamp</label>
+        <input id="fTs" type="datetime-local" step="1" required>
+        <label class="field">End (optional, for duration)</label>
+        <input id="fEnd" type="datetime-local" step="1">
+        <div class="row2">
+          <div><label class="field">Category</label><select id="fCat"></select></div>
+          <div><label class="field">Confidence</label><select id="fConf">
+            <option value="confirmed">Confirmed</option>
+            <option value="probable">Probable</option>
+            <option value="uncertain">Uncertain</option>
+          </select></div>
+        </div>
+        <div class="row2">
+          <div><label class="field">Source</label><input id="fSource" type="text" placeholder="e.g. EDR"></div>
+          <div><label class="field">Machine / host</label><input id="fMachine" type="text" placeholder="e.g. SRV-FS-02"></div>
+        </div>
+        <label class="field">Event role</label>
+        <select id="fRole">
+          <option value="observed">Observed / neutral</option>
+          <option value="milestone">Milestone / pivotal</option>
+        </select>
+        <label class="field">Description</label>
+        <textarea id="fDesc" rows="3"></textarea>
+        <label class="field" style="text-transform:none;letter-spacing:0"><input id="fHidden" type="checkbox" style="margin-right:6px">Hidden from timeline</label>
+        <div class="btnrow">
+          <button type="submit" class="primary" id="fSave">Save</button>
+          <button type="button" id="fDelete" class="danger">Delete</button>
+          <button type="button" id="fCancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </aside>
+</div>
+<div id="tooltip"></div>
+<div id="toasts"></div>
+<div id="modal" class="hidden">
+  <div class="modal-card">
+    <div class="modal-head"><h2>Import timeline data</h2><button id="btnCloseModal" title="Close">&#215;</button></div>
+    <div class="imp-note">
+      <b>Timestamps must be in UTC.</b> Write them as <code>2026-02-03T12:13:25Z</code> &mdash; the trailing
+      <code>Z</code> marks UTC. A stamp with no zone marker is read as <b>UTC</b>; a stamp with an offset
+      (<code>+02:00</code>) is read as that offset. The timeline's own <b>Timezone</b> only changes the
+      wall clock on screen, never the instant stored.
+    </div>
+    <div class="tabs">
+      <button data-tab="file" class="on">File</button>
+      <button data-tab="paste">Paste</button>
+    </div>
+    <div id="tab-file" class="tab-body">
+      <div id="dropzone">Drop a .json / .csv / .tsv file here, or <label class="filewrap">browse<input id="fileInput" type="file" accept=".json,.csv,.txt,.tsv"></label></div>
+    </div>
+    <div id="tab-paste" class="tab-body hidden">
+      <textarea id="pasteArea" placeholder="Paste JSON, CSV, or Excel (TSV) data here&#10;&#10;TIMESTAMPS MUST BE IN UTC — 2026-02-03T12:13:25Z (the trailing Z marks UTC).&#10;&#10;CSV requires a header row with at least a timestamp column; recognized headers: timestamp, date, title, description, category, duration, end, source, confidence, machine name"></textarea>
+      <button id="btnPasteImport">Import pasted data</button>
+    </div>
+    <div id="importMsg"></div>
+  </div>
+</div>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const W = 1280, PADR = 30, GUTTER = 214, MACH_GUT = 300;
+const NS = "http://www.w3.org/2000/svg";
+const FONT = "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif";
+/* Red is reserved for malicious events, so no
+   category or machine colour may use it. The category hues are spread evenly
+   around the wheel with the red band (roughly 0-30 degrees) left out. */
+const PALETTE = ["#c98a1e","#7d9a2e","#4e8f3a","#1e8449","#0e8f8f","#2e6fb7","#4f5b9c","#7d3c98","#b04a9e","#c2548f"];
+const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const CAT_PRESETS = [
+  ["Initial Access","#c98a1e"],["Execution","#7d9a2e"],["Persistence","#4e8f3a"],
+  ["Privilege Escalation","#1e8449"],["Defense Evasion","#7f8c8d"],["Credential Access","#c2548f"],
+  ["Discovery","#4f5b9c"],["Lateral Movement","#2e6fb7"],["Collection","#1f618d"],
+  ["Command & Control","#0e8f8f"],["Data Exfiltration","#148f77"],["Impact","#b04a9e"],
+  ["Containment & Recovery","#27ae60"],["Recovery","#1e8449"],["Investigation","#6a8f2f"],
+  ["Reconnaissance","#5d6d7e"],["Malware Delivery","#8a6d3b"]
+];
+const MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const LS_KEY = "ftv.autosave.v1";
+const APP_VERSION = "1.14.0";
+
+function freshState(){
+  return {
+    doc: {title:"Untitled timeline", caseId:"", analyst:"", timezone:"UTC"},
+    categories: [],
+    events: [],
+    view: {mode:"swimlane", theme:"light", labelMode:"auto", zoom:null, zoomStack:[], selected:null, groupBy:"category", machineColors:{}, machineSlots:{}, range:{from:null, to:null}}
+  };
+}
+let state = freshState();
+let undoStack = [];
+let TC = {};
+let evSort = {key:"t", dir:1};
+let evFormMode = "add";
+let editingId = null;
+
+function catById(id){ return state.categories.find(c => c.id === id); }
+function catByLabel(label){
+  const l = String(label||"").trim().toLowerCase();
+  return state.categories.find(c => (c.label||"").trim().toLowerCase() === l);
+}
+function visibleEvents(){
+  return state.events.filter(e => {
+    if (e.hidden) return false;
+    const c = catById(e.category);
+    return c ? c.enabled !== false : false;
+  });
+}
+function inWindow(e, d0, d1){
+  const s = e.timestamp, en = e.end == null ? e.timestamp : e.end;
+  return en >= d0 && s <= d1;
+}
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function slug(s){
+  return String(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"") || "cat";
+}
+function genId(){
+  return "e" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+function esc(s){ return String(s==null?"":s); }
+
+function themeColors(){
+  const cs = getComputedStyle(document.body);
+  const g = n => cs.getPropertyValue(n).trim();
+  return {bg:g("--bg"), panel:g("--panel"), fg:g("--fg"), muted:g("--muted"),
+    border:g("--border"), accent:g("--accent"), chip:g("--chip"), grid:g("--grid"), axis:g("--axis")};
+}
+
+/* ---- Machine colors: guaranteed-distinct, stable, analyst-overridable ----
+   Colors are allocated from a validated palette rather than derived from a
+   hash: a hash gives only 360 possible hues, so unrelated names routinely
+   landed in the same colour region and two machines looked identical.
+   Each slot is [hue, saturation, lightness-light, lightness-dark]; the set
+   was chosen so the closest pair is separated by ~35 CIE dE units, which
+   keeps every two machines clearly distinguishable in both themes. */
+const MACHINE_SLOTS = [
+  [284, 62, 48, 60], [120, 70, 50, 54], [240, 70, 46, 54], [189, 70, 50, 54],
+  [47, 70, 46, 54], [316, 70, 46, 54], [238, 40, 34, 60], [123, 48, 34, 70],
+  [36, 40, 40, 66], [324, 48, 34, 66], [76, 70, 46, 54], [30, 22, 52, 66]
+];
+const NO_MACHINE = "(no machine)";
+function hslToHex(h, s, l){
+  h = ((h % 360) + 360) % 360 / 360; s /= 100; l /= 100;
+  const f = n => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    return Math.round(255 * v).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+function hexToHsl(hex){
+  const n = String(hex || "").replace("#", "");
+  if (n.length < 6) return null;
+  const r = parseInt(n.slice(0, 2), 16) / 255, g = parseInt(n.slice(2, 4), 16) / 255, b = parseInt(n.slice(4, 6), 16) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (!d) return {h: 0, s: 0, l: mx * 100};
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h *= 60; if (h < 0) h += 360;
+  return {h, s: (d / mx) * 100, l: mx * 100};
+}
+/* Red is reserved for malicious events, so a category colour that lands in
+   the red band is moved out of it. */
+function safeCategoryColor(hex){
+  const c = hexToHsl(hex);
+  if (!c || c.h >= 30 || c.s < 45) return hex;
+  return hslToHex(30, c.s, c.l);
+}
+function mixHex(a, b, tB){
+  const p = c => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(c||"").trim());
+    if (!m) return [0, 0, 0];
+    const v = parseInt(m[1], 16);
+    return [v >> 16, (v >> 8) & 255, v & 255];
+  };
+  const a1 = p(a), b1 = p(b);
+  return "#" + a1.map((v, i) => Math.round(v * (1 - tB) + b1[i] * tB).toString(16).padStart(2, "0")).join("");
+}
+function machineNames(){
+  const seen = new Set();
+  state.events.forEach(e => {
+    const m = (e.machine || "").trim();
+    if (m) seen.add(m);
+  });
+  return Array.from(seen);
+}
+/* Allocate a palette slot per machine. Slots are persisted, so a machine
+   keeps its colour for good and new machines never recolour old ones. */
+function ensureMachineSlots(){
+  if (!state.view.machineSlots) state.view.machineSlots = {};
+  const slots = state.view.machineSlots;
+  const used = new Set();
+  Object.keys(slots).forEach(k => { const v = slots[k]; if (typeof v === "number") used.add(v); });
+  machineNames().filter(n => n !== NO_MACHINE).sort().forEach(nm => {
+    if (typeof slots[nm] !== "number"){
+      let i = 0;
+      while (used.has(i)) i++;
+      slots[nm] = i;
+      used.add(i);
+    }
+  });
+  return slots;
+}
+function machineBaseColor(name){
+  if (name === NO_MACHINE) return state.view.theme === "dark" ? "#8b95a1" : "#79818b";
+  const slots = ensureMachineSlots();
+  let idx = slots[name];
+  if (typeof idx !== "number"){ ensureMachineSlots(); idx = slots[name]; }
+  if (typeof idx !== "number") return "#8a8f96";
+  const base = MACHINE_SLOTS[idx % MACHINE_SLOTS.length];
+  const ring = Math.floor(idx / MACHINE_SLOTS.length);
+  const dark = state.view.theme === "dark";
+  let l = dark ? base[3] : base[2];
+  if (ring === 1) l += dark ? 10 : -11;
+  else if (ring === 2) l += dark ? -9 : 8;
+  return hslToHex(base[0], base[1] * (dark ? 0.95 : 1), Math.max(18, Math.min(88, l)));
+}
+function machineColor(name){
+  const ov = state.view.machineColors && state.view.machineColors[name];
+  return ov || machineBaseColor(name);
+}
+function machineTint(name){
+  return mixHex(machineColor(name), TC.panel, state.view.theme === "dark" ? 0.82 : 0.87);
+}
+
+/* The timeline's timezone is a real zone, not a decoration: "UTC", a fixed
+   offset ("UTC+2", "GMT-05:30") or an IANA name ("Europe/Sofia"). Anything
+   else falls back to UTC, so the wall clock an analyst reads never depends
+   on the machine they happen to be sitting at. */
+function tzLabel(){ return String(state.doc.timezone||"UTC").trim() || "UTC"; }
+function tzOffsetMs(ms){
+  const label = tzLabel();
+  if (/^(utc|gmt|z|universal|greenwich)$/i.test(label)) return 0;
+  const m = /^(?:utc|gmt)\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$/i.exec(label);
+  if (m){
+    const sign = m[1] === "-" ? -1 : 1;
+    return sign * ((+m[2]) * 3600000 + (+(m[3] || 0)) * 60000);
+  }
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {timeZone: label, hour12:false,
+      year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit"});
+    const p = {};
+    dtf.formatToParts(new Date(ms)).forEach(x => { p[x.type] = x.value; });
+    const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, (+p.hour) % 24, +p.minute, +p.second);
+    return asUTC - Math.floor(ms / 1000) * 1000;
+  } catch(e){ return 0; }
+}
+function tzParts(ms){
+  const d = new Date(ms + tzOffsetMs(ms));
+  return {
+    y: d.getUTCFullYear(), mo: d.getUTCMonth(), da: d.getUTCDate(),
+    hh: d.getUTCHours(), mi: d.getUTCMinutes(), ss: d.getUTCSeconds()
+  };
+}
+/* the zone's offset for a given wall clock, used to read a form field back */
+function tzOffsetForWall(y, mo, da, hh, mi){
+  const naive = Date.UTC(y, mo, da, hh, mi);
+  let off = tzOffsetMs(naive);
+  off = tzOffsetMs(naive - off);
+  return off;
+}
+function fmtDT(ms){
+  const t = tzParts(ms);
+  return `${MN[t.mo]} ${t.da} ${t.y}, ${p2(t.hh)}:${p2(t.mi)}`;
+}
+function fmtShort(ms){
+  const t = tzParts(ms);
+  return `${MN[t.mo]} ${t.da}, ${p2(t.hh)}:${p2(t.mi)}`;
+}
+function fmtCompact(ms){
+  const t = tzParts(ms);
+  return `${MN[t.mo]} ${t.da} ${p2(t.hh)}:${p2(t.mi)}`;
+}
+function fmtTimeOnly(ms){
+  const t = tzParts(ms);
+  return `${p2(t.hh)}:${p2(t.mi)}`;
+}
+function p2(n){ return String(n).padStart(2,"0"); }
+function fmtDur(a, b){
+  let s = Math.round((b - a)/1000);
+  if (s < 60) return s + "s";
+  const m = Math.floor(s/60); s %= 60;
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m/60); const rm = m % 60;
+  if (h < 48) return rm ? `${h}h ${rm}m` : `${h}h`;
+  const d = Math.floor(h/24); const rh = h % 24;
+  return rh ? `${d}d ${rh}h` : `${d}d`;
+}
+function fmtRangeFull(a, b){
+  return `${fmtDT(a)} \u2013 ${b!=null?fmtDT(b):""} (${tzLabel()})`;
+}
+function parseDate(v){
+  if (v == null || v === "") return null;
+  if (typeof v === "number" && isFinite(v)) return v > 1e12 ? v : v * 1000;
+  const s = String(v).trim();
+  if (/^\d+(\.\d+)?$/.test(s)){ const n = +s; return n > 1e12 ? n : n * 1000; }
+  /* An ISO-8601 stamp that carries its own zone is absolute: read it exactly
+     as written, so a "Z" can never be mistaken for local time. */
+  const iso = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?\s*(Z|z|[+-]\d{2}:?\d{2})$/.exec(s);
+  if (iso){
+    const y = +iso[1], mo = +iso[2] - 1, da = +iso[3], hh = +iso[4], mi = +iso[5];
+    const ss = iso[6] ? +iso[6] : 0, msec = iso[7] ? +iso[7] : 0;
+    let t = Date.UTC(y, mo, da, hh, mi, ss, msec);
+    const z = iso[8];
+    if (z !== "Z" && z !== "z"){
+      const zm = /([+-])(\d{2}):?(\d{2})/.exec(z);
+      t -= (zm[1] === "-" ? -1 : 1) * ((+zm[2]) * 3600000 + (+zm[3]) * 60000);
+    }
+    return t;
+  }
+  const t = Date.parse(s.includes(" ") && !/t/i.test(s.slice(0, s.lastIndexOf(" "))) ? s.replace(" ","T") : s);
+  return isNaN(t) ? null : t;
+}
+function normConf(v){
+  const s = String(v==null?"":v).trim().toLowerCase();
+  if (!s) return "confirmed";
+  if (/uncert|unconf|unverif|possib|tbd|unknown|assum|appro|estim|indic/.test(s)) return "uncertain";
+  if (/probab|likel|suspect|suggest|presum/.test(s)) return "probable";
+  return "confirmed";
+}
+/* Event roles: how an event reads to a management audience.
+   observed  - routine indicator, the category's own colour
+   milestone - the pivotal event of the case
+   fraudulent - malicious / fraudulent activity, red in every view
+   fraudMilestone - pivotal AND fraudulent: red wins, the milestone is lost */
+const ROLES = ["observed","milestone","fraudulent","fraudMilestone"];
+function normRole(v){
+  const s = String(v==null?"":v).trim().toLowerCase();
+  if (!s) return "";
+  const toks = s.split(/[^a-z]+/).filter(Boolean);
+  const has = w => toks.indexOf(w) >= 0;      // exact tokens only: "red" must not match "credentials"
+  const fraud = has("fraud")||has("fraudulent")||has("malicious")||has("malware")||has("attack")||has("breach")||has("unauthorized")||has("unauthorised")||has("crime")||has("compromise")||has("exfiltration");
+  const mile = has("milestone")||has("pivotal")||has("highlight")||has("turning")||has("approval")||has("escalation")||has("pivot");
+  if (fraud && mile) return "fraudMilestone";
+  if (fraud) return "fraudulent";
+  if (mile) return "milestone";
+  if (has("observed")||has("neutral")||has("normal")||has("routine")) return "observed";
+  return "";
+}
+function roleIsFraud(role){ return role === "fraudulent" || role === "fraudMilestone"; }
+function roleIsMilestone(role){ return role === "milestone" || role === "fraudMilestone"; }
+function msToInput(ms){
+  const t = tzParts(ms);
+  return `${t.y}-${p2(t.mo+1)}-${p2(t.da)}T${p2(t.hh)}:${p2(t.mi)}:${p2(t.ss)}`;
+}
+/* The form shows a wall clock in the TIMELINE's timezone, so it has to be read
+   back in the same timezone. Parsing it with the browser's own offset would
+   move every event it touched, and dropping the seconds would move it again:
+   a saved event must come back as the exact instant it was. */
+function inputToMs(v){
+  if (!v) return null;
+  const s = String(v).trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  const absolute = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+  if (m && !absolute){
+    const y = +m[1], mo = +m[2] - 1, da = +m[3], hh = +m[4], mi = +m[5], ss = m[6] ? +m[6] : 0;
+    /* the field is a wall clock in the timeline's own zone */
+    return Date.UTC(y, mo, da, hh, mi, ss) - tzOffsetForWall(y, mo, da, hh, mi);
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
+/* A saved event must come back as the exact instant it was. The field is a
+   wall clock, so a browser that hands back less precision than the event
+   carries would otherwise shave the seconds off it — the original seconds
+   are put back, unless the analyst really did move the time. */
+function formTimeMs(value, original){
+  const s = String(value == null ? "" : value).trim();
+  const ms = inputToMs(s);
+  if (ms == null) return null;
+  if (original == null) return ms;
+  if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(s)) return ms;   /* typed with seconds */
+  const a = tzParts(ms), b = tzParts(original);
+  const sameMinute = a.y === b.y && a.mo === b.mo && a.da === b.da
+    && a.hh === b.hh && a.mi === b.mi;
+  if (!sameMinute) return ms;                                        /* the analyst moved it */
+  const lost = original - Math.floor(original / 60000) * 60000;
+  return ms - (ms - Math.floor(ms / 60000) * 60000) + lost;
+}
+
+function svgEl(tag, attrs){
+  const el = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) el.setAttribute(k, String(attrs[k]));
+  return el;
+}
+function svgText(parent, x, y, str, o){
+  o = o || {};
+  const t = svgEl("text", {
+    x, y, "text-anchor": o.anchor||"start", "font-size": o.size||11,
+    "font-weight": o.weight||400, fill: o.fill||TC.fg, "font-family": FONT,
+    "dominant-baseline": o.baseline||"auto"
+  });
+  if (o.attrs) for (const k in o.attrs) t.setAttribute(k, String(o.attrs[k]));
+  t.textContent = String(str==null?"":str);
+  parent.appendChild(t);
+  return t;
+}
+let msvg = null;
+const mcache = {};
+function measure(text, size, weight){
+  const key = size + "|" + (weight||400) + "|" + text;
+  if (mcache[key]) return mcache[key];
+  if (!msvg){
+    msvg = svgEl("svg", {width:0, height:0});
+    msvg.setAttribute("style","position:absolute;left:-99999px;top:0;pointer-events:none");
+    document.body.appendChild(msvg);
+  }
+  const t = svgEl("text", {"font-size":size, "font-weight":weight||400, "font-family":FONT});
+  t.textContent = String(text);
+  msvg.appendChild(t);
+  const bb = t.getBBox();
+  msvg.removeChild(t);
+  mcache[key] = {w:bb.width, h:bb.height};
+  return mcache[key];
+}
+function truncateTo(text, size, weight, maxW){
+  if (measure(text, size, weight).w <= maxW) return text;
+  let s = String(text);
+  while (s.length > 1 && measure(s + "\u2026", size, weight).w > maxW) s = s.slice(0, -1);
+  return s + "\u2026";
+}
+/* Greedy word wrap with an ellipsis when the text does not fit in maxLines.
+   Words longer than the line are hard-broken, so no line can ever be wider
+   than maxW and run out of its box. */
+function wrapText(text, size, weight, maxW, maxLines){
+  const src = String(text == null ? "" : text).trim();
+  if (!src) return [];
+  const words = [];
+  src.split(/\s+/).filter(Boolean).forEach(w => {
+    if (measure(w, size, weight).w <= maxW){ words.push(w); return; }
+    let cur = "";
+    for (const ch of w){
+      if (cur && measure(cur + ch, size, weight).w > maxW){ words.push(cur); cur = ch; }
+      else cur += ch;
+    }
+    if (cur) words.push(cur);
+  });
+  const lines = [];
+  let cur = "";
+  let overflow = false;
+  for (let i = 0; i < words.length; i++){
+    const t = cur ? cur + " " + words[i] : words[i];
+    if (!cur || measure(t, size, weight).w <= maxW){ cur = t; continue; }
+    lines.push(cur);
+    cur = words[i];
+    if (lines.length === maxLines){ overflow = true; break; }
+  }
+  if (cur && !overflow) lines.push(cur);
+  if (overflow){
+    let last = lines[maxLines - 1] || "";
+    while (last.length && measure(last + "\u2026", size, weight).w > maxW) last = last.slice(0, -1);
+    lines[maxLines - 1] = last + "\u2026";
+  }
+  return lines;
+}
+
+function toast(msg, kind){
+  const box = $("#toasts");
+  const d = document.createElement("div");
+  d.className = "toast" + (kind === "err" ? " err" : "");
+  d.textContent = msg;
+  box.appendChild(d);
+  setTimeout(() => d.remove(), 3600);
+}
+function splitDelimited(text, delim){
+  const rows = [];
+  let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++){
+    const c = text[i];
+    if (inQ){
+      if (c === "\""){
+        if (text[i+1] === "\""){ cur += "\""; i++; }
+        else inQ = false;
+      } else cur += c;
+    } else if (c === "\"") inQ = true;
+    else if (c === delim){ row.push(cur); cur = ""; }
+    else if (c === "\n"){ row.push(cur); rows.push(row); row = []; cur = ""; }
+    else if (c !== "\r") cur += c;
+  }
+  if (cur !== "" || row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r => r.length > 1 || (r[0] && r[0].trim() !== ""));
+}
+function sniffFormat(text){
+  const t = (text||"").trim();
+  if (!t) return null;
+  if (t[0] === "[" || t[0] === "{"){
+    try { JSON.parse(t); return "json"; } catch(e){ return "json-bad"; }
+  }
+  const nl = t.indexOf("\n");
+  const first = nl > 0 ? t.slice(0, nl) : t;
+  return first.includes("\t") ? "tsv" : "csv";
+}
+function pickField(raw, names){
+  const keys = Object.keys(raw);
+  for (const n of names){
+    for (const k of keys){
+      if (k.toLowerCase().replace(/[\s_-]+/g,"") === n) return raw[k];
+    }
+  }
+  return undefined;
+}
+function ensureCategory(key, cats){
+  const raw = String(key==null||key===""?"Other":key).trim();
+  const sl = slug(raw);
+  let c = cats.find(x => x.id === sl || (x.label||"").trim().toLowerCase() === raw.toLowerCase());
+  if (!c){
+    c = {id: sl, label: raw, color: PALETTE[cats.length % PALETTE.length], enabled: true};
+    cats.push(c);
+  }
+  return c;
+}
+/* A duration column ("0d 00:56:18", "1h 12m", "45 min", "2.5 h") becomes an
+   end time. Free text is ignored rather than guessed at. */
+function parseDurationMs(v){
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (!s || s === "-" || s === "n/a" || s === "none") return null;
+  let m = /(\d+)\s*d(?:ays?)?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  if (m) return ((+m[1]) * 86400 + (+m[2]) * 3600 + (+m[3]) * 60 + (m[4] ? +m[4] : 0)) * 1000;
+  m = /^(\d+):(\d{2})(?::(\d{2}))?$/.exec(s);
+  if (m) return ((+m[1]) * 3600 + (+m[2]) * 60 + (m[3] ? +m[3] : 0)) * 1000;
+  m = /(\d+(?:\.\d+)?)\s*(ms|secs?|seconds?|mins?|minutes?|hrs?|hours?|days?|s|m|h|d)\b/.exec(s);
+  if (m){
+    const n = parseFloat(m[1]);
+    const u = m[2];
+    const mult = u === "ms" ? 1
+      : /^(s|sec|secs|second|seconds)$/.test(u) ? 1000
+      : /^(m|min|mins|minute|minutes)$/.test(u) ? 60000
+      : /^(h|hr|hrs|hour|hours)$/.test(u) ? 3600000
+      : 86400000;
+    return Math.round(n * mult);
+  }
+  return null;
+}
+function normalizeEvent(raw, rowIdx, cats, msgs){
+  const ts = parseDate(pickField(raw, ["timestamp","date","datetime","startdate","starttime","start","time","when"]));
+  if (ts == null){
+    msgs.push({sev:"err", row: rowIdx, msg:"missing or invalid timestamp \u2014 row skipped"});
+    return null;
+  }
+  let end = parseDate(pickField(raw, ["end","endtimestamp","enddate","endtime","stop","finish"]));
+  if (end == null){
+    const dur = parseDurationMs(pickField(raw, ["duration","dur","length","elapsed","span","durationms"]));
+    if (dur != null && dur > 0) end = ts + dur;
+  }
+  let title = pickField(raw, ["title","event","summary","name","activity"]);
+  let description = pickField(raw, ["description","details","notes","note","comment"]);
+  if (title == null || String(title).trim() === ""){
+    if (description != null && String(description).trim() !== ""){
+      title = String(description).trim();
+      if (title.length > 60) title = title.slice(0, 57) + "\u2026";
+    } else {
+      msgs.push({sev:"err", row: rowIdx, msg:"no title or description \u2014 row skipped"});
+      return null;
+    }
+  }
+  title = String(title).trim();
+  if (description != null) description = String(description).trim();
+  if (end != null && end <= ts){
+    msgs.push({sev:"warn", row: rowIdx, msg:"end timestamp is not after the start timestamp \u2014 end ignored"});
+    end = null;
+  }
+  const catKey = pickField(raw, ["category","lane","type","phase","group","stage"]);
+  const cat = ensureCategory(catKey, cats);
+  const source = pickField(raw, ["source","evidence","artifact","provenance","log"]);
+  const machine = pickField(raw, ["machine","machinename","host","hostname","hostname","computer","devicename","device","system","systemname","asset"]);
+  const hiddenV = pickField(raw, ["hidden","hide","visible"]);
+  const hidden = hiddenV != null && /^(true|yes|y|1|hidden|hide)$/i.test(String(hiddenV).trim());
+  const id = String(pickField(raw, ["id"]) || genId());
+  const roleRaw = pickField(raw, ["role","significance","eventrole","nature","eventnature","classification","eventtype"]);
+  const role = normRole(roleRaw) || normRole(cat.label) || "observed";
+  return {
+    id, timestamp: ts, end, title, description: description || "",
+    category: cat.id, source: source == null ? "" : String(source).trim(),
+    machine: machine == null ? "" : String(machine).trim(),
+    confidence: normConf(pickField(raw, ["confidence","certainty","veracity"])),
+    role, hidden
+  };
+}
+function importJSONDoc(text){
+  const msgs = [];
+  let data;
+  try { data = JSON.parse(text); }
+  catch(e){ throw new Error("Invalid JSON: " + e.message); }
+  let docPart = {}, evs = [], cats = [];
+  if (Array.isArray(data)) evs = data;
+  else if (data && typeof data === "object"){
+    docPart = {
+      title: data.title != null ? String(data.title) : "Untitled timeline",
+      caseId: data.caseId != null ? String(data.caseId) : (data.case != null ? String(data.case) : ""),
+      analyst: data.analyst != null ? String(data.analyst) : "",
+      timezone: data.timezone != null ? String(data.timezone) : "UTC"
+    };
+    if (Array.isArray(data.categories)){
+      data.categories.forEach((c, i) => {
+        if (!c) return;
+        const label = String(c.label || c.name || c.id || "Category").trim();
+        cats.push({
+          id: slug(c.id || label), label,
+          color: /^#[0-9a-f]{3,8}$/i.test(String(c.color)) ? String(c.color) : PALETTE[(cats.length) % PALETTE.length],
+          enabled: c.enabled !== false
+        });
+      });
+    }
+    evs = Array.isArray(data.events) ? data.events : [];
+  } else throw new Error("JSON root must be an object or an array of events");
+  const events = [];
+  evs.forEach((raw, i) => {
+    if (!raw || typeof raw !== "object"){ msgs.push({sev:"err", row:i+1, msg:"not an object \u2014 skipped"}); return; }
+    const e = normalizeEvent(raw, i+1, cats, msgs);
+    if (e) events.push(e);
+  });
+  if (!events.length){
+    const e = new Error("No valid events found in JSON data");
+    e.msgs = msgs;
+    throw e;
+  }
+  const seen = {};
+  events.forEach(e => { if (seen[e.id]) e.id = e.id + "-" + genId().slice(1); seen[e.id] = 1; });
+  let viewPart = null;
+  if (data && !Array.isArray(data) && data.view && typeof data.view === "object"){
+    const v = data.view;
+    viewPart = {
+      mode: ["swimlane","milestones","density"].includes(v.mode) ? v.mode : null,
+      labelMode: ["auto","labels","numbers","both"].includes(v.labelMode) ? v.labelMode : null,
+      groupBy: ["category","machine"].includes(v.groupBy) ? v.groupBy : null,
+      machineColors: (v.machineColors && typeof v.machineColors === "object")
+        ? Object.assign({}, v.machineColors) : null,
+      machineSlots: (v.machineSlots && typeof v.machineSlots === "object")
+        ? Object.assign({}, v.machineSlots) : null
+    };
+    if (!viewPart.mode && !viewPart.labelMode && !viewPart.groupBy && !viewPart.machineColors && !viewPart.machineSlots) viewPart = null;
+  }
+  return {doc: docPart, categories: cats, events, msgs, view: viewPart};
+}
+function importDelimited(text, delim){
+  const msgs = [];
+  const rows = splitDelimited(text, delim);
+  if (rows.length < 2) throw new Error("Need a header row plus at least one data row");
+  const header = rows[0].map(h => String(h||"").trim());
+  const recs = [];
+  for (let i = 1; i < rows.length; i++){
+    const rec = {};
+    header.forEach((h, j) => { if (h) rec[h] = rows[i][j] != null ? String(rows[i][j]).trim() : ""; });
+    recs.push({rec, row: i + 1});
+  }
+  const cats = [];
+  const events = [];
+  recs.forEach(({rec, row}) => {
+    const e = normalizeEvent(rec, row, cats, msgs);
+    if (e) events.push(e);
+  });
+  if (!events.length){
+    const e = new Error("No valid events found \u2014 every row failed (check the timestamp column)");
+    e.msgs = msgs;
+    throw e;
+  }
+  /* do the stamps carry their own UTC designator? the app says so out loud
+     when the timeline is read in another zone */
+  let utcStamps = false, naive = 0;
+  const stampKey = recs.length ? Object.keys(recs[0].rec).find(k =>
+    /^(timestamp|date|datetime|startdate|starttime|start|time|when)$/i.test(k.replace(/[\s_-]+/g, ""))) : null;
+  if (stampKey)
+    for (const r of recs){
+      const v = String(r.rec[stampKey] || "").trim();
+      if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?\s*Z$/i.test(v)){ utcStamps = true; break; }
+      if (v && !/[+-]\d{2}:?\d{2}$/.test(v) && !/^\d+(\.\d+)?$/.test(v)) naive++;
+    }
+  if (naive)
+    msgs.push({sev:"warn", row:0,
+      msg:`${naive} row(s) carry a timestamp with no UTC marker \u2014 they are read as UTC. Write them as 2026-02-03T12:13:25Z.`});
+  return {doc: {}, categories: cats, events, msgs, utcStamps};
+}
+function importText(text, forcedFormat){
+  const fmt = forcedFormat || sniffFormat(text);
+  if (fmt === "json" || fmt === "json-bad") return importJSONDoc(text);
+  if (fmt === "tsv") return importDelimited(text, "\t");
+  return importDelimited(text, ",");
+}
+function applyImport(res){
+  pushUndo();
+  if (res.doc.title) state.doc.title = res.doc.title;
+  if (res.doc.caseId !== undefined) state.doc.caseId = res.doc.caseId;
+  if (res.doc.analyst !== undefined) state.doc.analyst = res.doc.analyst;
+  if (res.doc.timezone) state.doc.timezone = res.doc.timezone;
+  state.categories = res.categories;
+  state.events = res.events;
+  state.view.zoom = null;
+  state.view.selected = null;
+  if (res.view){
+    if (res.view.mode) state.view.mode = res.view.mode;
+    if (res.view.labelMode) state.view.labelMode = res.view.labelMode;
+    if (res.view.groupBy) state.view.groupBy = res.view.groupBy;
+    if (res.view.machineColors) state.view.machineColors = res.view.machineColors;
+    if (res.view.machineSlots) state.view.machineSlots = res.view.machineSlots;
+  }
+  render();
+  /* if the data carries its own zone and the timeline says another one, say
+     so plainly rather than letting the analyst wonder about the hours */
+  if (res.utcStamps && tzOffsetMs(Date.now()) !== 0)
+    setTimeout(() => toast(`Imported ${res.events.length} events. Their timestamps are UTC, but this timeline is read in ${tzLabel()} — the chart shows them at ${tzLabel()}.`, "err"), 900);
+  return res.msgs || [];
+}
+function showImportMsgs(msgs, nEvents){
+  const box = $("#importMsg");
+  if (!msgs.length){
+    box.innerHTML = `<div class="imp-ok">Imported ${nEvents} events.</div>`;
+    return;
+  }
+  const errs = msgs.filter(m => m.sev === "err"), warns = msgs.filter(m => m.sev === "warn");
+  let html = `<div class="imp-ok">Imported ${nEvents} events.</div>`;
+  if (errs.length) html += `<div class="imp-err">${errs.length} row(s) skipped:</div>` +
+    errs.slice(0, 10).map(m => `<div class="imp-err">Row ${m.row}: ${esc(m.msg)}</div>`).join("") +
+    (errs.length > 10 ? `<div class="imp-err">\u2026 and ${errs.length - 10} more</div>` : "");
+  if (warns.length) html += `<div class="imp-warn">${warns.length} warning(s):</div>` +
+    warns.slice(0, 6).map(m => `<div class="imp-warn">Row ${m.row}: ${esc(m.msg)}</div>`).join("") +
+    (warns.length > 6 ? `<div class="imp-warn">\u2026 and ${warns.length - 6} more</div>` : "");
+  box.innerHTML = html;
+}
+function readFileImport(file){
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const res = importText(String(rd.result), null);
+      applyImport(res);
+      showImportMsgs(res.msgs || [], res.events.length);
+      toast(`Imported ${res.events.length} events from ${file.name}`);
+      setTimeout(closeModal, 700);
+    } catch(err){
+      $("#importMsg").innerHTML = `<div class="imp-err">${esc(err.message)}</div>` +
+        (err.msgs || []).slice(0,8).map(m => `<div class="imp-${m.sev}">Row ${m.row}: ${esc(m.msg)}</div>`).join("");
+    }
+  };
+  rd.onerror = () => toast("Could not read file", "err");
+  rd.readAsText(file);
+}
+function openModal(){ $("#modal").classList.remove("hidden"); $("#importMsg").innerHTML = ""; }
+function closeModal(){ $("#modal").classList.add("hidden"); }
+
+const DEMO = {
+  title: "Incident IR-2026-042 \u2014 Timeline of Events",
+  caseId: "IR-2026-042",
+  analyst: "A. Tasheff",
+  timezone: "UTC",
+  categories: [
+    {id:"initial-access", label:"Initial Access", color:"#c98a1e"},
+    {id:"execution", label:"Execution", color:"#cf7f1f"},
+    {id:"c2", label:"Command & Control", color:"#2e6fb7"},
+    {id:"lateral", label:"Lateral Movement", color:"#7d3c98"},
+    {id:"exfil", label:"Data Exfiltration", color:"#0e8f8f"},
+    {id:"containment", label:"Containment & Recovery", color:"#1e8449"}
+  ],
+  events: [
+    {timestamp:"2026-10-08T16:05:00Z", title:"Attacker infrastructure domain registered", description:"WHOIS shows api-update-cdn[.]net registered two days before phishing wave.", category:"initial-access", source:"Threat intel / WHOIS", confidence:"uncertain"},
+    {timestamp:"2026-10-09T08:41:00Z", end:"2026-10-09T09:03:00Z", title:"Phishing wave delivered to 14 employees", description:"Spoofed invoice-themed emails with macro-enabled attachment.", category:"initial-access", source:"Email gateway", machine:"EXCH-01", confidence:"confirmed"},
+    {timestamp:"2026-10-09T08:52:00Z", title:"Employee J. Meyer opened invoice-q3.xlsm", description:"Attachment opened on WKSTN-114; macros enabled after prompt.", category:"initial-access", source:"Outlook PST", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-09T09:01:00Z", title:"Excel spawned powershell.exe", description:"Macro executed a decoded PowerShell command via WinRM.", category:"execution", source:"Sysmon EID 1", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-09T09:02:00Z", title:"Stage-2 payload downloaded", description:"Payload pulled from 198.51.100.44 over HTTPS.", category:"execution", source:"Proxy logs", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-09T09:14:00Z", title:"Scheduled task 'OneDriveSync' created", description:"Persistence via daily task at 09:00 under the user context.", category:"execution", source:"Windows Security Log 4698", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-09T09:02:30Z", end:"2026-10-11T06:00:00Z", title:"Beaconing to C2 domain api-update-cdn[.]net", description:"Regular 60-second interval beacons from WKSTN-114.", category:"c2", source:"EDR telemetry", machine:"WKSTN-114", confidence:"probable", role:"fraudulent"},
+    {timestamp:"2026-10-09T13:20:00Z", title:"Active Directory enumeration (BloodHound)", description:"SharpHound collection observed from WKSTN-114.", category:"lateral", source:"Sysmon EID 1", machine:"WKSTN-114", confidence:"probable"},
+    {timestamp:"2026-10-09T14:05:00Z", end:"2026-10-09T15:10:00Z", title:"Authentication spray against SRV-FS-02", description:"~240 failed logons across 12 accounts.", category:"lateral", source:"Windows Security Log 4625", machine:"SRV-FS-02", confidence:"uncertain"},
+    {timestamp:"2026-10-10T02:11:00Z", title:"Valid credentials used on SRV-FS-02 (jmeyer)", description:"First successful interactive logon outside business hours.", category:"lateral", source:"Windows Security Log 4624", machine:"SRV-FS-02", confidence:"confirmed"},
+    {timestamp:"2026-10-10T02:30:00Z", title:"SMB copy of Archive_2025.zip to file share", description:"4.1 GB archive staged to \\\\SRV-FS-02\\Finance$.", category:"lateral", source:"File share audit log", machine:"SRV-FS-02", confidence:"confirmed"},
+    {timestamp:"2026-10-10T03:05:00Z", title:"Second-stage implant on SRV-FS-02", description:"Beacon signature matched Cobalt Strike profile.", category:"c2", source:"EDR telemetry", machine:"SRV-FS-02", confidence:"probable"},
+    {timestamp:"2026-10-10T09:40:00Z", title:"HR database dump staged in C:\\Temp", description:"hr_dump.sql created on SRV-FS-02 (compressed 2.3 GB).", category:"exfil", source:"Sysmon EID 11", machine:"SRV-FS-02", confidence:"confirmed", role:"fraudulent"},
+    {timestamp:"2026-10-10T10:02:00Z", end:"2026-10-10T11:52:00Z", title:"Outbound transfer to 203.0.113.11 (2.3 GB)", description:"Sustained HTTPS upload well above baseline.", category:"exfil", source:"Perimeter firewall", machine:"SRV-FS-02", confidence:"probable", role:"fraudulent"},
+    {timestamp:"2026-10-11T06:00:00Z", title:"C2 beaconing ceased", description:"Last observed beacon from WKSTN-114.", category:"c2", source:"EDR telemetry", machine:"WKSTN-114", confidence:"probable"},
+    {timestamp:"2026-10-11T07:30:00Z", title:"EDR alert triggered \u2014 investigation started", description:"Behavioral rule matched staged dump + long beacon session.", category:"containment", source:"EDR", confidence:"confirmed", role:"milestone"},
+    {timestamp:"2026-10-11T08:15:00Z", title:"Compromised account jmeyer disabled", description:"AD account disabled and sessions revoked.", category:"containment", source:"AD change log", machine:"DC-01", confidence:"confirmed"},
+    {timestamp:"2026-10-11T08:22:00Z", title:"Known-bad hashes blocked at endpoint policy", description:"IOC hash list pushed to all endpoints.", category:"containment", source:"EDR policy", confidence:"confirmed"},
+    {timestamp:"2026-10-11T09:00:00Z", title:"C2 IPs and domain blocked at firewall", description:"Sinkholed api-update-cdn[.]net; blocked 198.51.100.44, 203.0.113.11.", category:"containment", source:"Perimeter firewall", machine:"FW-EDGE-01", confidence:"confirmed"},
+    {timestamp:"2026-10-11T09:41:00Z", title:"Scheduled task removed on WKSTN-114", description:"Persistence mechanism eliminated.", category:"containment", source:"EDR", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-11T10:26:00Z", end:"2026-10-11T13:30:00Z", title:"WKSTN-114 isolated and reimaged", description:"Forensic image captured, then rebuilt from gold image.", category:"containment", source:"IR log", machine:"WKSTN-114", confidence:"confirmed"},
+    {timestamp:"2026-10-12T10:00:00Z", title:"Domain-wide forced password reset", description:"All user credentials reset after exposure assessment.", category:"containment", source:"AD change log", machine:"DC-01", confidence:"confirmed"},
+    {timestamp:"2026-10-12T14:30:00Z", end:"2026-10-13T18:00:00Z", title:"MFA enrollment completed for remote users", description:"Conditional Access enforced for all external access.", category:"containment", source:"Entra ID sign-in logs", confidence:"probable"},
+    {timestamp:"2026-10-13T09:00:00Z", end:"2026-10-14T09:00:00Z", title:"Heightened monitoring \u2014 no recurrence observed", description:"24h watch on egress, authentication and endpoint telemetry.", category:"containment", source:"SOC watch log", confidence:"probable"}
+  ]
+};
+function loadDemo(withUndo){
+  if (withUndo) pushUndo();
+  state.doc = {title: DEMO.title, caseId: DEMO.caseId, analyst: DEMO.analyst, timezone: DEMO.timezone};
+  state.categories = DEMO.categories.map(c => ({id:c.id, label:c.label, color:c.color, enabled:true}));
+  state.events = DEMO.events.map(e => ({
+    id: genId(), timestamp: parseDate(e.timestamp), end: e.end != null ? parseDate(e.end) : null,
+    title: e.title, description: e.description || "", category: e.category,
+    source: e.source || "", machine: e.machine || "", confidence: normConf(e.confidence),
+    role: e.role || "observed", hidden: false
+  }));
+  state.view.zoom = null;
+  state.view.selected = null;
+}
+function fullDomain(){
+  const evs = visibleEvents();
+  if (!evs.length) return null;
+  let a = Infinity, b = -Infinity;
+  evs.forEach(e => { a = Math.min(a, e.timestamp); b = Math.max(b, e.end == null ? e.timestamp : e.end); });
+  return [a, b];
+}
+/* The window the user asked for: the zoom selection, or the padded extent
+   of all data when nothing is zoomed. This is the "core" window \u2014 the
+   edge margin below is added on top of it at render time only. */
+function coreDomain(){
+  let c = null;
+  if (state.view.zoom){
+    let [z0, z1] = state.view.zoom;
+    if (z1 - z0 < 1e3) z1 = z0 + 1e3;
+    c = [z0, z1];
+  } else {
+    const f = fullDomain();
+    if (!f) return null;
+    let [a, b] = f;
+    const span = b - a;
+    if (span === 0){ a -= 36e5 * 4; b += 36e5 * 4; }
+    else { const pad = Math.max(span * 0.03, 6e4); a -= pad; b += pad; }
+    c = [a, b];
+  }
+  /* the range is a hard limit: nothing outside it is shown, whatever the zoom
+     or the data extent says */
+  const r = state.view.range || {};
+  if (r.from != null || r.to != null){
+    const f = fullDomain();
+    const lo = r.from != null ? r.from : (f ? f[0] : c[0]);
+    const hi = r.to != null ? r.to : (f ? f[1] : c[1]);
+    let a = Math.max(c[0], lo), b = Math.min(c[1], hi);
+    if (b <= a){ a = lo; b = hi; }
+    if (b - a < 1000) b = a + 1000;
+    c = [a, b];
+  }
+  return c;
+}
+function activeDomain(){
+  const c = coreDomain();
+  if (!c) return null;
+  return edgeRoom(c[0], c[1]);
+}
+/* Extend the covered time so an event sitting at the very edge of the chart
+   still has room for its text. Without this the leftmost label is clipped by
+   the plot frame (swimlane) or its card is shoved out of alignment with its
+   marker (milestones / density).
+
+   The margin is content-aware. In swimlane the label is drawn to the RIGHT of
+   its marker and can be 270px wide, so the right-hand margin must be sized
+   from the label itself — a fixed few pixels left the text squeezed to
+   nothing and silently replaced by a numbered pin.
+
+   The window only ever grows (A leftwards, B rightwards), so a zoom the
+   analyst chose is preserved and merely padded. The pixel margins are
+   recomputed against the current scale each pass; because the margin is a
+   small fraction of the plot width the pass converges quickly. */
+const EDGE_MARGIN = { swimlane: [18, 0], milestones: [140, 140], density: [100, 100] };
+const MAX_LABEL_W = 270;
+function edgeRoom(a, b){
+  const mode = state.view.mode;
+  const m = EDGE_MARGIN[mode] || EDGE_MARGIN.swimlane;
+  const pl = mode === "swimlane"
+    ? (state.view.groupBy === "machine" ? MACH_GUT : GUTTER) : 40;
+  const pw = Math.max(1, (W - PADR) - pl);
+  const evs = visibleEvents().filter(e => inWindow(e, a, b));
+  if (!evs.length) return [a, b];
+  let t0 = Infinity, t1 = -Infinity;      // leftmost marker / rightmost bar end
+  let tM = -Infinity, eM = null;           // rightmost marker
+  evs.forEach(e => {
+    if (e.timestamp < t0) t0 = e.timestamp;
+    const end = e.end == null ? e.timestamp : e.end;
+    if (end > t1) t1 = end;
+    if (e.timestamp > tM){ tM = e.timestamp; eM = e; }
+  });
+  let mL = m[0], mR = m[1];
+  if (mode === "swimlane"){
+    /* the label sits to the right of the marker: reserve exactly the space
+       its text needs, so it is neither truncated nor dropped for a pin.
+       70px is the floor below which the renderer gives up and substitutes a
+       numbered pin, which is what "hidden text" looked like. */
+    const labW = eM ? Math.min(measure(eM.title, 11, 500).w, MAX_LABEL_W) : 0;
+    const mach = eM ? (eM.machine || "").trim() : "";
+    const markW = mach ? Math.min(measure(mach, 10, 600).w, 150) + 8 : 0;
+    const timeW = (b - a) <= 30 * 60e3 ? 58 : 0;      /* the seconds prefix */
+    mR = Math.max(70, 10 + labW + markW + timeW + 8);
+  }
+  let A = a, B = b;
+  for (let i = 0; i < 8; i++){
+    const S = Math.max(1, B - A);
+    const k = S / pw;                       // time per pixel at this scale
+    /* only a mark that sits just inside the frame may push it out: a mark
+       beyond the frame belongs to an event that merely overlaps it, and
+       must not drag the whole window with it */
+    const nA = (t0 >= A && (t0 - A) / k < mL) ? t0 - mL * k : A;
+    const nB = (tM <= B && (B - tM) / k < mR) ? tM + mR * k : B;
+    if (nA === A && nB === B) break;
+    A = nA; B = nB;
+  }
+  const S = Math.max(1, B - A), k = S / pw;
+  /* a bar that ends just past the frame is kept whole — but a bar that ends
+     days beyond it must not stretch the window out to its end */
+  if (t1 > B && (t1 - B) / k < 12) B = t1 + 12 * k;
+  return [A, B];
+}
+function zoomBy(f){
+  const full = fullDomain();
+  if (!full) return;
+  const core = coreDomain();
+  if (!core) return;
+  const [d0, d1] = core;
+  const fs = (full[1] - full[0]) || 1;
+  /* Zooming out unwinds the way in, step by step, so the analyst gets their
+     own window back exactly. */
+  if (f > 1){
+    const stack = state.view.zoomStack || [];
+    if (stack.length){
+      const prev = stack[stack.length - 1];
+      const cur = state.view.zoom ? state.view.zoom[1] - state.view.zoom[0] : (d1 - d0);
+      if (prev[1] - prev[0] > cur + 1){
+        stack.pop();
+        state.view.zoom = prev;
+        render();
+        return;
+      }
+      state.view.zoomStack = [];      /* nothing left to unwind: widen freely */
+    }
+  }
+  /* Anchor on the MEDIAN event in view, not the bounding-box centre. The
+     bounding-box centre sits in empty space when events are clustered, and
+     zooming towards it pushes the analyst's own data off the chart. */
+  const inView = visibleEvents().filter(e => inWindow(e, d0, d1)).map(e => e.timestamp).sort((a, b) => a - b);
+  const center = inView.length ? inView[Math.floor(inView.length / 2)] : (d0 + d1) / 2;
+  /* the analyst can go right down to a second or so — that is where two
+     events a second apart become readable */
+  const minSpan = 1500;
+  const maxSpan = fs * 2.5 + 72e5;
+  let span = clamp((d1 - d0) * f, minSpan, maxSpan);
+  let anchor = center;
+  if (f < 1){
+    /* Step down through the natural units of time: a case spanning years
+       reaches its seconds in a handful of clicks, not thirty. */
+    const step = niceStepBelow(span / 2);
+    if (step) span = Math.max(minSpan, Math.min(span, step));
+    /* If the events around the anchor are tighter still, go to them. */
+    if (inView.length > 1){
+      const ci = inView.indexOf(center);
+      const lo = inView[Math.max(0, ci - 1)], hi = inView[Math.min(inView.length - 1, ci + 1)];
+      const evSpan = hi - lo;
+      const pad = Math.max(evSpan * 0.12, 400);
+      if (evSpan + pad < span && evSpan + pad >= minSpan){
+        span = evSpan + pad;
+        anchor = (lo + hi) / 2;
+      }
+    }
+    state.view.zoomStack = (state.view.zoomStack || []).slice(-30);
+    state.view.zoomStack.push([d0, d1]);
+  } else {
+    /* widening steps up through the same ladder */
+    const up = TICK_STEPS.find(s => s > span);
+    if (up) span = Math.min(maxSpan, Math.max(span * 1.4, up));
+  }
+  const z0 = anchor - span / 2;
+  state.view.zoom = [Math.round(z0), Math.round(z0 + span)];
+  render();
+}
+function fitZoom(){ state.view.zoom = null; state.view.zoomStack = []; render(); }
+function zoomRatio(){
+  const fit = fitDomain();
+  const act = activeDomain();
+  if (!fit || !act) return 1;
+  return (fit[1] - fit[0]) / Math.max(1, act[1] - act[0]);
+}
+function fitDomain(){
+  const f = fullDomain();
+  if (!f) return null;
+  let [a, b] = f;
+  const span = b - a;
+  if (span === 0){ a -= 36e5 * 4; b += 36e5 * 4; }
+  else { const pad = Math.max(span * 0.03, 6e4); a -= pad; b += pad; }
+  return edgeRoom(a, b);
+}
+
+/* The natural steps of time: a second, five seconds, a minute, an hour, a
+   day and so on. The axis ticks use them, and the zoom steps down through
+   them, so a case that spans years reaches its seconds in a handful of
+   clicks instead of twenty. */
+const TICK_STEPS = [1e3,5e3,15e3,3e4,6e4,3e5,9e5,18e5,36e5,72e5,144e5,288e5,864e5,1728e5,6048e5,12096e5,2592e6,7776e6,15552e6,315576e5,631152e6,157788e7];
+function niceStepBelow(x){
+  let best = 0;
+  for (const s of TICK_STEPS) if (s <= x && s > best) best = s;
+  return best;
+}
+function niceTicks(d0, d1){
+  const span = d1 - d0;
+  const STEPS = TICK_STEPS;
+  const step = STEPS.find(s => span / s <= 9) || STEPS[STEPS.length - 1];
+  const ticks = [];
+  if (step >= 2592e6){
+    const k = Math.round(step / 2592e6);
+    const sd = new Date(d0);
+    let y = sd.getUTCFullYear(), m = Math.floor(sd.getUTCMonth() / k) * k;
+    let t = Date.UTC(y, m, 1);
+    while (t <= d0){ m += k; t = Date.UTC(y, m, 1); }
+    while (t <= d1){ ticks.push(t); m += k; t = Date.UTC(y, m, 1); }
+  } else {
+    for (let t = Math.ceil(d0 / step) * step; t <= d1; t += step) ticks.push(t);
+  }
+  return {ticks, step, span};
+}
+function fmtTick(t, step, span){
+  const p = tzParts(t);
+  /* a sub-minute step means the analyst is looking at seconds: show them */
+  if (step < 6e4) return `${p2(p.hh)}:${p2(p.mi)}:${p2(p.ss)}`;
+  if (step < 864e5) return (p.hh === 0 && p.mi === 0) ? `${MN[p.mo]} ${p.da}` : `${p2(p.hh)}:${p2(p.mi)}`;
+  if (step <= 12096e5) return `${MN[p.mo]} ${p.da}`;
+  return span > 500 * 864e5 ? `${MN[p.mo]} ${p.y}` : MN[p.mo];
+}
+function drawAxis(svg, x, pl, pr, topY, axisY, d0, d1){
+  const {ticks, step, span} = niceTicks(d0, d1);
+  /* When the band unit is month or year the axis ticks land on the same
+     boundaries as the bands, so the faint gridlines would double up. */
+  const unit = bandUnitFor(d0, d1);
+  const showGrid = unit === "day" || unit === "week";
+  ticks.forEach(t => {
+    const tx = x(t);
+    if (showGrid){
+      const grid = svgEl("line", {x1:tx, y1:topY, x2:tx, y2:axisY - 4, stroke:TC.grid, "stroke-width":1});
+      svg.appendChild(grid);
+    }
+    const tm = svgEl("line", {x1:tx, y1:axisY, x2:tx, y2:axisY + 5, stroke:TC.axis, "stroke-width":1.2});
+    svg.appendChild(tm);
+    svgText(svg, tx, axisY + 19, fmtTick(t, step, span), {anchor:"middle", size:10.5, fill:TC.muted});
+  });
+  const ax = svgEl("line", {x1:pl, y1:axisY, x2:pr, y2:axisY, stroke:TC.axis, "stroke-width":1.3});
+  svg.appendChild(ax);
+}
+/* Band boundaries fall on midnight in the timeline's own zone, never in the
+   browser's. */
+function dayStartMs(t){
+  const p = tzParts(t);
+  return Date.UTC(p.y, p.mo, p.da) - tzOffsetMs(t);
+}
+function monthStartMs(t){
+  const p = tzParts(t);
+  return Date.UTC(p.y, p.mo, 1) - tzOffsetMs(t);
+}
+function mondayMs(t){
+  const p = tzParts(t);
+  const dow = new Date(Date.UTC(p.y, p.mo, p.da)).getUTCDay();
+  const back = (dow + 6) % 7;
+  return Date.UTC(p.y, p.mo, p.da - back) - tzOffsetMs(t);
+}
+/* Band unit scales with the visible span so long periods never turn into
+   a wall of vertical lines. Boundaries fall on natural calendar edges. */
+function bandUnitFor(d0, d1){
+  const span = Math.max(0, d1 - d0), day = 864e5;
+  if (span <= 31 * day) return "day";
+  if (span <= 120 * day) return "week";
+  if (span <= 1100 * day) return "month";
+  return "year";
+}
+function bandStartMs(t, unit){
+  if (unit === "day") return dayStartMs(t);
+  if (unit === "week") return mondayMs(t);
+  if (unit === "month") return monthStartMs(t);
+  const p = tzParts(t);
+  return Date.UTC(p.y, 0, 1) - tzOffsetMs(t);
+}
+function advanceBand(ms, unit){
+  const p = tzParts(ms);
+  const off = tzOffsetMs(ms);
+  if (unit === "day") return Date.UTC(p.y, p.mo, p.da + 1) - off;
+  if (unit === "week") return Date.UTC(p.y, p.mo, p.da + 7) - off;
+  if (unit === "month") return Date.UTC(p.y, p.mo + 1, 1) - off;
+  return Date.UTC(p.y + 1, 0, 1) - off;
+}
+function bandLabel(t, unit, bw){
+  const p = tzParts(t);
+  if (unit === "day"){
+    const wd = new Date(Date.UTC(p.y, p.mo, p.da)).getUTCDay();
+    let label = `${MN[p.mo]} ${p.da}`;
+    if (bw >= 110) label = `${WD[wd]}, ${label}`;
+    return bw >= 54 ? label : null;
+  }
+  if (unit === "week") return bw >= 46 ? `${MN[p.mo]} ${p.da}` : null;
+  if (unit === "month"){
+    if (bw >= 56) return `${MN[p.mo]} ${p.y}`;
+    return bw >= 30 ? MN[p.mo] : null;
+  }
+  return bw >= 40 ? `${p.y}` : null;
+}
+function drawTimeBands(svg, x, d0, d1, yTop, yBottom, headerH, bgAlpha){
+  const unit = bandUnitFor(d0, d1);
+  const h = yBottom - yTop;
+  const alpha = bgAlpha == null ? 0.5 : bgAlpha;
+  let s = bandStartMs(d0, unit);
+  if (s < d0) s = advanceBand(s, unit);
+  let i = 0, guard = 0;
+  while (s <= d1 && guard < 600){
+    guard++;
+    const e = advanceBand(s, unit);
+    const b = Math.min(e, d1);
+    if (b > s){
+      const xa = x(s), xb = x(b);
+      if (i % 2 === 0 && xb > xa)
+        svg.appendChild(svgEl("rect", {x:xa, y:yTop, width:xb - xa, height:Math.max(0, h),
+          fill:TC.chip, "fill-opacity":alpha, "data-bandbg":unit}));
+      if (headerH){
+        const lbl = bandLabel(s, unit, xb - xa);
+        if (lbl) svgText(svg, (xa + xb) / 2, yTop + headerH - 7, lbl,
+          {anchor:"middle", size:10.5, weight:600, fill:TC.muted, attrs:{"data-bandlabel":unit}});
+      }
+    }
+    if (s > d0 && s < d1)
+      svg.appendChild(svgEl("line", {x1:x(s), y1:yTop, x2:x(s), y2:yBottom,
+        stroke:TC.axis, "stroke-width":1.3, "stroke-opacity":0.8, "data-band":unit}));
+    s = e;
+    i++;
+  }
+  if (headerH)
+    svg.appendChild(svgEl("line", {x1:x(d0), y1:yTop + headerH, x2:x(d1), y2:yTop + headerH,
+      stroke:TC.border, "stroke-width":1}));
+}
+/* Red is reserved for malicious events: an event marked fraudulent or
+   malicious wears red in every view, whatever its category colour is. */
+const MALICIOUS_RED = "#E53935";
+function eventIsMalicious(e){ return roleIsFraud(e.role || "observed"); }
+function eventMarkColor(e, cat){
+  return eventIsMalicious(e) ? MALICIOUS_RED : (cat ? cat.color : TC.muted);
+}
+function markerShape(parent, cx, cy, cat, conf, r, color){
+  const col = color || (cat ? cat.color : TC.muted);
+  if (conf === "confirmed"){
+    parent.appendChild(svgEl("circle", {cx, cy, r:r, fill:col, stroke:TC.panel, "stroke-width":1.6}));
+  } else if (conf === "probable"){
+    parent.appendChild(svgEl("circle", {cx, cy, r:r, fill:TC.panel, stroke:col, "stroke-width":2.8}));
+  } else {
+    parent.appendChild(svgEl("circle", {cx, cy, r:r, fill:TC.panel, stroke:col, "stroke-width":2.2, "stroke-dasharray":"3.5 2.5"}));
+  }
+}
+function drawDurationBar(parent, x, y, h, ev, cat){
+  const s = x(clamp(ev.timestamp, dom0, dom1)), e = x(clamp(ev.end, dom0, dom1));
+  const attrs = {x:Math.min(s,e), y:y - h/2, width:Math.max(2, Math.abs(e - s)), height:h, rx:h/2,
+    fill:eventMarkColor(ev, cat), "fill-opacity":0.26, stroke:eventMarkColor(ev, cat), "stroke-opacity":0.85};
+  if (ev.confidence === "uncertain"){ attrs["stroke-dasharray"] = "4 3"; attrs["fill-opacity"] = 0.12; attrs["stroke-opacity"] = 0.7; }
+  else if (ev.confidence === "probable"){ attrs["fill-opacity"] = 0.15; attrs["stroke-opacity"] = 0.5; }
+  parent.appendChild(svgEl("rect", attrs));
+}
+let dom0 = 0, dom1 = 0;
+/* "Both" mode numbers every event in the view, not just the ones that had to
+   fall back to a pin, so a number always resolves back to an event. */
+let labelNums = new Map();
+let legendPins = [];
+function evGroup(parent, ev){
+  const g = svgEl("g", {"data-eid": ev.id});
+  g.setAttribute("style", "cursor:pointer");
+  parent.appendChild(g);
+  return g;
+}
+function drawSelectionRing(parent, cx, cy, r){
+  parent.appendChild(svgEl("circle", {cx, cy, r:r + 4.5, fill:"none", stroke:TC.accent, "stroke-width":2, "stroke-opacity":0.85}));
+}
+function drawPin(parent, cx, cy, n, color, conf, r){
+  const solid = (conf || "confirmed") === "confirmed";
+  const rr = r || 9.5;
+  const attrs = {cx, cy, r:rr, fill: solid ? color : TC.panel, stroke:color, "stroke-width":1.6};
+  if (conf === "uncertain") attrs["stroke-dasharray"] = "3 2";
+  parent.appendChild(svgEl("circle", attrs));
+  svgText(parent, cx, cy + rr * 0.34, String(n), {anchor:"middle", size:Math.max(8, rr * 1.0), weight:700, fill: solid ? TC.panel : TC.fg});
+}
+function layoutSlots(items, cap, pl, pr){
+  const slots = {above: [], below: []};
+  const out = [];
+  items.forEach(it => {
+    let placed = null;
+    const sides = [it.prefer, it.prefer === "above" ? "below" : "above"];
+    if (it.w > pr - pl - 4){ out.push({mode:"pin", it}); return; }
+    for (const side of sides){
+      for (let s = 0; s < cap; s++){
+        const arr = slots[side][s] || (slots[side][s] = []);
+        const hw = it.w / 2;
+        const cx = clamp(it.cx, pl + hw, pr - hw);
+        const a = cx - hw, b = cx + hw;
+        if (!arr.some(iv => a < iv[1] && b > iv[0])){
+          arr.push([a, b]);
+          placed = {mode:"card", side, slot:s, cx, a, b, w:it.w, it};
+          break;
+        }
+      }
+      if (placed) break;
+    }
+    out.push(placed || {mode:"pin", it});
+  });
+  return out;
+}
+function finalizePins(pins){
+  pins.sort((p, q) => p.ev.timestamp - q.ev.timestamp);
+  pins.forEach((p, i) => { p.n = i + 1; });
+  return pins;
+}
+function pinsLegend(svg, y, pins){
+  if (!pins.length) return 0;
+  const x0 = 40, x1 = W - PADR;
+  svgText(svg, x0, y + 12, "Event key", {size:11.5, weight:600, fill:TC.fg});
+  const cols = pins.length > 12 ? 2 : 1;
+  const colW = (x1 - x0 - 30) / cols;
+  const rowH = 19;
+  const rows = Math.ceil(pins.length / cols);
+  pins.forEach((p, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const cx = x0 + col * colW + 10, ty = y + 34 + row * rowH;
+    drawPin(svg, cx, ty - 3.8, p.n, p.cat.color, p.ev.confidence);
+    let txt = `${fmtShort(p.ev.timestamp)} \u2014 ${p.ev.title}`;
+    /* a machine lane already names the host — do not say it twice */
+    if (p.ev.machine && (!p.cat || p.cat.label !== p.ev.machine)) txt += `  \u00b7  ${p.ev.machine}`;
+    txt = truncateTo(txt, 11, 400, colW - 40);
+    svgText(svg, cx + 16, ty, txt, {size:11, fill:TC.fg});
+    const catObj = catById(p.ev.category) || p.cat;
+    const catTxt = catObj ? ` \u00b7 ${catObj.label}` : "";
+    if (measure(txt, 11, 400).w + measure(catTxt, 10, 400).w < colW - 48)
+      svgText(svg, cx + 16 + measure(txt, 11, 400).w + 6, ty, catTxt, {size:10, fill:TC.muted});
+  });
+  return 34 + rows * rowH + 6;
+}
+function drawTitleBlock(svg, evs){
+  const t = state.doc.title || "Untitled timeline";
+  svgText(svg, 40, 42, t, {size:21, weight:600});
+  const f = fullDomain();
+  const bits = [];
+  if (state.doc.caseId) bits.push("Case " + state.doc.caseId);
+  if (state.doc.analyst) bits.push("Analyst " + state.doc.analyst);
+  if (f) bits.push(`${fmtDT(f[0])} \u2013 ${fmtDT(f[1])} (${tzLabel()})`);
+  if (bits.length) svgText(svg, 40, 65, bits.join("   \u00b7   "), {size:12, fill:TC.muted});
+  /* when the view is limited to a range, say so — a chart that shows part of
+     the case must not read as the whole case */
+  const r = state.view.range || {};
+  if (r.from != null || r.to != null){
+    const lo = r.from != null ? r.from : (f ? f[0] : null);
+    const hi = r.to != null ? r.to : (f ? f[1] : null);
+    if (lo != null && hi != null)
+      svgText(svg, 40, 84, `Showing ${fmtDT(lo)} \u2013 ${fmtDT(hi)} only`, {size:11, fill:TC.muted});
+  }
+}
+function drawLegendRow(svg, y, counts){
+  const confReserve = 330;
+  let x = 40, lines = 1;
+  const cy = () => y + 6 + (lines - 1) * 22;
+  for (const cat of state.categories){
+    const cnt = counts[cat.id] || 0;
+    /* a hidden category stays in the legend, dimmed, so it can be switched
+       back on again */
+    const off = cat.enabled === false;
+    const label = cat.label;
+    const cntStr = `(${cnt})`;
+    const lw = measure(label, 11, 400).w, cw = measure(cntStr, 11, 400).w;
+    if (x > 40 && x + 18 + lw + 7 + cw > W - confReserve){
+      lines++;
+      x = 40;
+      if (lines > 3) break;
+    }
+    const lcy = cy();
+    const g = svgEl("g", {"data-catid": cat.id});
+    g.setAttribute("style", "cursor:pointer");
+    g.appendChild(svgEl("title", {}));
+    g.lastChild.textContent = off
+      ? `${cat.label} — hidden. Click to show it again`
+      : `${cat.label} — click to hide it`;
+    svg.appendChild(g);
+    g.appendChild(svgEl("rect", {x:x, y:lcy - 9, width:11, height:11, rx:2.5,
+      fill:cat.color, "fill-opacity": off ? 0.3 : 1}));
+    svgText(g, x + 18, lcy, label, {size:11, fill: off ? TC.muted : TC.fg});
+    svgText(g, x + 18 + lw + 7, lcy, cntStr, {size:11, fill:TC.muted});
+    x += 18 + lw + 7 + cw + 24;
+  }
+  const cy1 = cy();
+  const conf = [["Confirmed","solid"],["Probable","hollow"],["Uncertain","dashed"]];
+  /* red is reserved for malicious events, so the key says so when any are shown */
+  const anyMalicious = visibleEvents().some(e => roleIsFraud(e.role || "observed"));
+  const keys = conf.concat(anyMalicious ? [["Malicious","red"]] : []);
+  let total = 0;
+  const ws = keys.map(c => { const w = measure(c[0], 10, 400).w + 18; total += w; return w; });
+  let sx = W - PADR - total;
+  keys.forEach((c, i) => {
+    if (c[1] === "solid") svg.appendChild(svgEl("circle", {cx:sx+4.5, cy:cy1-4, r:4.5, fill:TC.fg}));
+    else if (c[1] === "hollow") svg.appendChild(svgEl("circle", {cx:sx+4.5, cy:cy1-4, r:4.5, fill:"none", stroke:TC.fg, "stroke-width":1.8}));
+    else if (c[1] === "red") svg.appendChild(svgEl("circle", {cx:sx+4.5, cy:cy1-4, r:4.5, fill:"#E53935"}));
+    else svg.appendChild(svgEl("circle", {cx:sx+4.5, cy:cy1-4, r:4.5, fill:"none", stroke:TC.fg, "stroke-width":1.6, "stroke-dasharray":"2.5 2"}));
+    svgText(svg, sx + 13, cy1, c[0], {size:10, fill:TC.muted});
+    sx += ws[i];
+  });
+  /* machine key: shown whenever machine colour is a mark, not the lane owner */
+  const machineOwnsLane = state.view.mode === "swimlane" && state.view.groupBy === "machine";
+  if (!machineOwnsLane){
+    const names = machineNames();
+    if (names.length){
+      lines++;
+      const my = cy();
+      svgText(svg, 40, my, "Machines", {size:10, weight:600, fill:TC.muted});
+      let mx = 40 + measure("Machines", 10, 600).w + 12;
+      const mcounts = {};
+      visibleEvents().forEach(e => { const m = (e.machine || "").trim(); if (m) mcounts[m] = (mcounts[m] || 0) + 1; });
+      names.forEach(m => {
+        const lab = truncateTo(m, 10, 500, 120);
+        const lw = measure(lab, 10, 500).w;
+        if (mx + 14 + lw + 8 > W - PADR) return;
+        svg.appendChild(svgEl("circle", {cx:mx + 4.5, cy:my - 4, r:4.5, fill:machineColor(m), "data-mkey":m}));
+        svgText(svg, mx + 14, my, lab, {size:10, fill:TC.fg});
+        const cnt = `(${mcounts[m] || 0})`;
+        svgText(svg, mx + 14 + lw + 4, my, cnt, {size:10, fill:TC.muted});
+        mx += 14 + lw + measure(cnt, 10, 400).w + 16;
+      });
+    }
+  }
+  return lines;
+}
+function drawFooter(svg, y){
+  const evs = visibleEvents();
+  const sources = new Set(evs.map(e => e.source).filter(Boolean)).size;
+  svg.appendChild(svgEl("line", {x1:40, y1:y, x2:W - PADR, y2:y, stroke:TC.border, "stroke-width":1}));
+  const left = `${evs.length} events  \u00b7  ${sources} source${sources !== 1 ? "s" : ""}  \u00b7  FTV v${APP_VERSION}  \u00b7  Generated ${fmtDT(Date.now())}`;
+  svgText(svg, 40, y + 21, left, {size:10.5, fill:TC.muted});
+  svgText(svg, W - PADR, y + 21, `All times shown in ${tzLabel()}`, {size:10.5, fill:TC.muted, anchor:"end"});
+}
+function drawEmpty(svg, H){
+  svg.appendChild(svgEl("rect", {x:0, y:0, width:W, height:H, fill:TC.panel}));
+  svgText(svg, W/2, H/2 - 12, "No events to display", {anchor:"middle", size:17, weight:600, fill:TC.muted});
+  svgText(svg, W/2, H/2 + 16, "Import JSON / CSV data, paste from the clipboard, or load the demo.", {anchor:"middle", size:12.5, fill:TC.muted});
+  svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+}
+function activeCats(){
+  return state.categories.filter(c =>
+    c.enabled !== false && state.events.some(e => !e.hidden && e.category === c.id));
+}
+function machineMark(parent, e, cx, cy){
+  const m = (e.machine || "").trim();
+  if (!m) return 0;
+  parent.appendChild(svgEl("circle", {cx, cy, r:2.8, fill:machineColor(m), "data-mmark":m}));
+  return 7;
+}
+/* ---- dynamic swimlane layout -------------------------------------------
+   Every lane is planned before it is drawn. Each event is given a label
+   track (a row above or below the lane's time line) and the lane grows to
+   fit the tracks it actually needs, so the chart re-flows itself to
+   whatever the data throws at it instead of piling labels on top of one
+   another. In "numbers" mode the badges are the markers, so events that
+   would collide get their own time line inside the lane. */
+const SW = {
+  track: 26,      // the vertical step between label rows
+  first: 17,      // the first label row below the time line
+  spine: 11,      // the room the dots need above the time line
+  maxTracks: 8,   // how many label rows a lane may grow to
+  rowH: 26,       // height of a numbered-badge time line
+  dotR: 8,        // radius of a numbered dot in "both" mode
+  dotR2: 6,       // radius of a plain dot in the other modes
+  dotGap: 2       // the clearance kept between two dots
+};
+/* Plan one lane: assign every event a label row, or a badge time line.
+
+   The lane reads from the upper left: the time line runs along the top of the
+   lane and the titles hang below it in rows, so the earliest event is the
+   top-left one and every later event steps down and to the right. */
+function planSwimLane(evs, cxOf, pr, mode, opt){
+  opt = opt || {};
+  const size = opt.size || 11;
+  const maxText = opt.maxW || 270;
+  const indent = opt.indent != null ? opt.indent : 10;
+  const numbers = mode === "numbers";
+  const both = mode === "both";
+  const trackEnd = [], subEnd = [];
+  const items = evs.map(e => {
+    const cx = cxOf(e);
+    if (numbers){
+      const r = 9.5;
+      let sub = 0;
+      for (let k = 0; k < 8; k++){
+        if (subEnd[k] === undefined || cx - r >= subEnd[k]){ sub = k; subEnd[k] = cx + r; break; }
+      }
+      return {e, cx, sub, pin:true};
+    }
+    const lx = cx + indent;
+    const maxW = pr - 8 - lx;
+    const ok = maxW >= 44;
+    /* when the analyst is looking at a burst of seconds, the label carries the
+       exact time — otherwise two events a minute apart read identically */
+    const timeTxt = opt.showTime ? fmtHMS(e.timestamp) : "";
+    const timeW = timeTxt ? measure(timeTxt, 9.5, 600).w + 7 : 0;
+    /* the mark that follows the title carries the OTHER dimension: the host's
+       name in the host's colour in a category lane, the category's chip in a
+       machine lane */
+    let markTxt = "", markW = 0;
+    if (opt.markKind === "machine"){
+      const m = (e.machine || "").trim();
+      markTxt = m ? truncateTo(m, 10, 600, 150) : "";
+      markW = markTxt ? measure(markTxt, 10, 600).w + 8 : 0;
+    } else if (opt.markKind === "category"){
+      markW = e.category ? 17 : 0;
+    }
+    const room = Math.max(30, Math.min(maxW - markW - timeW, maxText));
+    const txt = ok ? truncateTo(e.title, size, 500, room) : "";
+    const w = measure(txt, size, 500).w;
+    let track = -1;
+    if (ok) for (let k = 0; k < SW.maxTracks; k++){
+      if (trackEnd[k] === undefined || lx >= trackEnd[k]){ track = k; break; }
+    }
+    if (track >= 0) trackEnd[track] = lx + w + 10 + markW + timeW;
+    return {e, cx, lx, txt, w, timeTxt, timeW, markTxt, markW, track, pin: track < 0};
+  });
+  /* Two events minutes apart would land on the same dot, so a crowded dot
+     takes a row of its own just below the time line. The dot keeps its true x,
+     and the lane grows to make room for the stagger. */
+  const dotR = both ? SW.dotR : SW.dotR2;
+  const step = dotR * 2 + SW.dotGap;
+  const dotRows = [];
+  items.forEach(it => {
+    if (it.sub !== undefined) return;          /* "numbers" mode stacks its own rows */
+    let row = -1;
+    for (let k = 0; k < 8; k++){
+      const r = dotRows[k];
+      if (!r || it.cx - dotR >= r.end){ row = k; dotRows[k] = {end: it.cx + dotR}; break; }
+    }
+    if (row < 0) row = 0;
+    it.dotRow = row;
+    it.dotOff = row * step;
+  });
+  const rowsUsed = items.reduce((m, it) => Math.max(m, it.dotRow || 0), 0);
+  const band = rowsUsed ? rowsUsed * step + dotR : 0;
+  return {items, nTracks: trackEnd.length, nSubs: subEnd.length, band};
+}
+/* How tall does this lane have to be? */
+function swimLaneGeom(plan, numbers){
+  if (numbers){
+    const rows = Math.max(1, plan.nSubs);
+    return {h: rows * SW.rowH + 10, above: 0, rows, band: 0};
+  }
+  const nTracks = plan.nTracks;
+  const above = SW.spine;                                  /* the dots sit on the lane's top line */
+  const below = plan.band + SW.first + Math.max(0, nTracks - 1) * SW.track + 8;
+  return {h: above + below, above, band: plan.band};
+}
+/* The label rows hang below the time line, in order: the earliest event gets
+   the top row, the next one the row under it, and so on. */
+function swimTrackY(track, cy, band){
+  return cy + (band || 0) + SW.first + track * SW.track;
+}
+/* A thin stem from the dot to its title, so a title on a distant track is
+   still tied to its instant. The stem leaves the dot vertically and turns
+   into the text a couple of pixels before the first letter. */
+function drawLeader(parent, cx, dy, lx, ty, r){
+  const up = ty <= dy;
+  const y0 = dy + (up ? -r : r);
+  const foot = ty - 4;
+  if (Math.abs(foot - y0) < 1.5){
+    parent.appendChild(svgEl("line", {x1:cx + r, y1:dy, x2:lx - 2, y2:foot,
+      stroke:TC.axis, "stroke-width":1, "stroke-opacity":0.85, "data-leader":"1"}));
+    return;
+  }
+  parent.appendChild(svgEl("polyline", {points:`${cx},${y0} ${cx},${foot} ${lx - 2},${foot}`,
+    fill:"none", stroke:TC.axis, "stroke-width":1, "stroke-opacity":0.85, "data-leader":"1"}));
+}
+function renderSwimlane(svg, x, y0, d0, d1, pins){
+  if (state.view.groupBy === "machine") return renderSwimlaneByMachine(svg, x, y0, d0, d1, pins);
+  const pl = GUTTER, pr = W - PADR;
+  const cats = activeCats();
+  const headerH = 22;
+  const lanePins = [];
+  const mode = state.view.labelMode;
+  const both = mode === "both";
+  const numbers = mode === "numbers";
+  const cxOf = e => x(clamp(e.timestamp, d0, d1));
+  /* ---- plan every lane first, so the chart can size itself ---- */
+  /* within half an hour the labels carry the exact second */
+  const showTime = (d1 - d0) <= 30 * 60e3;
+  const plans = cats.map(cat => {
+    const evs = visibleEvents()
+      .filter(e => e.category === cat.id && inWindow(e, d0, d1))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const p = planSwimLane(evs, cxOf, pr, mode, {size:11, maxW:270, indent:10, markKind:"machine", showTime});
+    p.geom = swimLaneGeom(p, numbers);
+    p.cat = cat;
+    return p;
+  });
+  const totalH = plans.reduce((s, p) => s + p.geom.h, 0);
+  const axisY = y0 + headerH + totalH + 30;
+  drawTimeBands(svg, x, d0, d1, y0, axisY, headerH);
+  /* ---- the name column is chrome, not data: a divider and a heading mark
+     where it ends, so the plot reads as a separate area ---- */
+  svg.appendChild(svgEl("line", {x1:pl, y1:y0, x2:pl, y2:axisY,
+    stroke:TC.border, "stroke-width":1.4, "data-gutteredge":"1"}));
+  svgText(svg, 20, y0 + 15, "Category", {size:10, weight:700, fill:TC.muted,
+    attrs:{"letter-spacing":1.1, "data-gutterhead":"category"}});
+  const tintA = state.view.theme === "dark" ? 0.14 : 0.07;
+  /* ---- pass 1: the lane washes and their names ---- */
+  let ry = y0 + headerH;
+  const laneMeta = [];
+  plans.forEach((plan, li) => {
+    const {cat, geom} = plan;
+    const cy = ry + geom.above;               /* the lane's time line, at the top */
+    /* the lane's colour reaches all the way across — its name and the plot
+       belong to the same lane — and each lane is framed in that colour */
+    svg.appendChild(svgEl("rect", {x:8, y:ry, width:pr - 8, height:geom.h,
+      fill:cat.color, "fill-opacity":tintA, stroke:cat.color, "stroke-opacity":0.5,
+      "stroke-width":1, "data-lanetint":cat.id}));
+    svg.appendChild(svgEl("rect", {x:16, y:cy - 5.5, width:11, height:11, rx:2.5, fill:cat.color}));
+    svgText(svg, 36, cy + 4, truncateTo(cat.label, 12, 600, GUTTER - 44), {size:12, weight:600, fill:cat.color});
+    laneMeta.push({plan, li, cy, top:ry});
+    ry += geom.h;
+  });
+  /* ---- the stems sit above the washes but below every label ---- */
+  const leaders = svgEl("g", {"data-leaderlayer":"1", "pointer-events":"none"});
+  svg.appendChild(leaders);
+  /* ---- pass 2: the events themselves ---- */
+  laneMeta.forEach(m => {
+    const {plan, li, cy, top} = m;
+    const cat = plan.cat;
+    plan.items.forEach(it => {
+      const e = it.e;
+      const g = evGroup(svg, e);
+      if (numbers){
+        /* the numbered badge IS the marker, on its own time line */
+        const sy = top + 5 + it.sub * SW.rowH + SW.rowH / 2;
+        if (e.end != null) drawDurationBar(g, x, sy, 13, e, cat);
+        const p = {ev:e, cat, cy:sy};
+        lanePins.push(p);
+        pins.push(p);
+        return;
+      }
+      if (e.end != null) drawDurationBar(g, x, cy, 13, e, cat);
+      const dy = cy + (it.dotOff || 0);
+      const r = both ? SW.dotR : SW.dotR2;
+      if (both) drawPin(g, it.cx, dy, labelNums.get(e.id), eventMarkColor(e, cat), e.confidence, r);
+      else markerShape(g, it.cx, dy, cat, e.confidence, r, eventMarkColor(e, cat));
+      if (state.view.selected === e.id) drawSelectionRing(g, it.cx, dy, r);
+      if (it.track >= 0){
+        const ty = swimTrackY(it.track, cy, plan.band);
+        drawLeader(leaders, it.cx, dy, it.lx, ty, r);
+        let tx = it.lx;
+        if (it.timeTxt){
+          svgText(g, tx, ty, it.timeTxt, {size:9.5, weight:600, fill:TC.muted});
+          tx += it.timeW;
+        }
+        svgText(g, tx, ty, it.txt, {size:11, weight:500,
+          attrs:{"data-lt":li + ":" + it.track, "data-lx":it.lx, "data-lw":it.w}});
+        /* the host, in the host's colour — the machine's name, not a bare dot */
+        if (it.markTxt)
+          svgText(g, it.lx + it.timeW + it.w + 7, ty, it.markTxt,
+            {size:10, weight:600, fill:machineColor(it.markTxt), attrs:{"data-mmark":it.markTxt}});
+      }
+      if (both) legendPins.push({ev:e, cat, n:labelNums.get(e.id)});
+    });
+  });
+  /* the leftovers become numbered pins */
+  finalizePins(lanePins);
+  lanePins.forEach(p => {
+    const g = evGroup(svg, p.ev);
+    g.setAttribute("data-pinned", "1");
+    const cx = x(clamp(p.ev.timestamp, d0, d1));
+    if (p.ev.end != null) drawDurationBar(g, x, p.cy, 13, p.ev, p.cat);
+    drawPin(g, cx, p.cy, p.n, p.cat.color, p.ev.confidence);
+    if (state.view.selected === p.ev.id) drawSelectionRing(g, cx, p.cy, 9.5);
+  });
+  if (both) legendPins.push(...lanePins.map(p => ({ev:p.ev, cat:p.cat, n:labelNums.get(p.ev.id)})));
+  drawAxis(svg, x, pl, pr, y0 + headerH, axisY, d0, d1);
+  return headerH + totalH + 52;
+}
+function renderSwimlaneByMachine(svg, x, y0, d0, d1, pins){
+  const pl = MACH_GUT, pr = W - PADR;
+  const mode = state.view.labelMode;
+  const both = mode === "both";
+  const numbers = mode === "numbers";
+  const headerH = 22;
+  const evs = visibleEvents().filter(e => inWindow(e, d0, d1));
+  const cxOf = e => x(clamp(e.timestamp, d0, d1));
+  /* within half an hour the labels carry the exact second */
+  const showTime = (d1 - d0) <= 30 * 60e3;
+  const mOrder = [];
+  const byMachine = {};
+  evs.forEach(e => {
+    const m = (e.machine || "").trim() || NO_MACHINE;
+    if (!byMachine[m]){ byMachine[m] = []; mOrder.push(m); }
+    byMachine[m].push(e);
+  });
+  mOrder.sort((a, b) => {
+    const ta = Math.min.apply(null, byMachine[a].map(e => e.timestamp));
+    const tb = Math.min.apply(null, byMachine[b].map(e => e.timestamp));
+    return ta - tb;
+  });
+  /* Each host gets a PLATE, and inside the plate every category the host
+     touched gets a sub-lane of its own — the plate is the machine, the
+     sub-lanes are the categories. */
+  const groups = mOrder.map(m => {
+    const cats = state.categories.filter(c => c.enabled !== false && byMachine[m].some(e => e.category === c.id));
+    const subCats = cats.length ? cats : [{id:null, label:"\u2014", color:TC.muted}];
+    const rows = subCats.map(cat => {
+      const revs = byMachine[m]
+        .filter(e => cat.id == null || e.category === cat.id)
+        .sort((a, b) => a.timestamp - b.timestamp);
+      const p = planSwimLane(revs, cxOf, pr, mode, {size:10.5, maxW:240, indent:10, markKind:"category", showTime});
+      p.geom = swimLaneGeom(p, numbers);
+      p.cat = cat;
+      return p;
+    });
+    return {machine: m, rows, h: rows.reduce((s, r) => s + r.geom.h, 0)};
+  });
+  /* the plates stand apart: no rules between them, just space and a frame */
+  const PLATE_GAP = 9, SUB_GAP = 4;
+  const totalH = groups.reduce((s, g) => s + g.h + SUB_GAP * Math.max(0, g.rows.length - 1), 0)
+    + Math.max(0, groups.length - 1) * PLATE_GAP;
+  const axisY = y0 + headerH + totalH + 30;
+  /* the host's colour reaches across the whole plate — its name column
+     included — and the plate is framed in that colour */
+  const laneTop = y0 + headerH;
+  let gy = laneTop;
+  groups.forEach(grp => {
+    const plateH = grp.h + SUB_GAP * Math.max(0, grp.rows.length - 1);
+    svg.appendChild(svgEl("rect", {x:8, y:gy, width:pr - 8, height:plateH, rx:6,
+      fill:machineTint(grp.machine), "fill-opacity":0.55, stroke:machineColor(grp.machine),
+      "stroke-opacity":0.6, "stroke-width":1.3, "data-lanetint":grp.machine}));
+    gy += plateH + PLATE_GAP;
+  });
+  drawTimeBands(svg, x, d0, d1, y0, axisY, headerH, 0.28);
+  /* ---- the name column is chrome, not data ---- */
+  svg.appendChild(svgEl("line", {x1:pl, y1:y0, x2:pl, y2:axisY,
+    stroke:TC.border, "stroke-width":1.4, "data-gutteredge":"1"}));
+  svgText(svg, 20, y0 + 15, "Machine", {size:10, weight:700, fill:TC.muted,
+    attrs:{"letter-spacing":1.1, "data-gutterhead":"machine"}});
+  const lanePins = [];
+  /* ---- pass 1: the machine names and the category sub-lanes ---- */
+  let ry = laneTop;
+  const groupMeta = [];
+  groups.forEach((grp) => {
+    const mc = machineColor(grp.machine);
+    const plateH = grp.h + SUB_GAP * Math.max(0, grp.rows.length - 1);
+    svg.appendChild(svgEl("rect", {x:16, y:ry + 4, width:3.5, height:plateH - 8, rx:2, fill:mc, "data-mname":grp.machine}));
+    svgText(svg, 26, ry + plateH / 2 + 4, truncateTo(grp.machine, 12, 700, 130), {size:12, weight:700, fill:mc});
+    grp.rows.forEach((row, ri) => {
+      const cy = ry + row.geom.above;
+      const cat = row.cat;
+      /* the sub-lane keeps its own category colour, so the plate still says
+         which category each row belongs to */
+      svg.appendChild(svgEl("rect", {x:160, y:cy - 5, width:10, height:10, rx:2.5,
+        fill:cat.color || TC.muted, "data-catsub":cat.id || ""}));
+      svgText(svg, 177, cy + 4, truncateTo(cat.label, 10.5, 500, MACH_GUT - 185),
+        {size:10.5, weight:500, fill:cat.color || TC.muted});
+      if (ri > 0)
+        svg.appendChild(svgEl("line", {x1:150, y1:ry - SUB_GAP / 2, x2:pr, y2:ry - SUB_GAP / 2,
+          stroke:mc, "stroke-width":1, "stroke-opacity":0.28}));
+      groupMeta.push({grp, row, cy, top:ry});
+      ry += row.geom.h + SUB_GAP;
+    });
+    ry += PLATE_GAP - SUB_GAP;
+  });
+  /* ---- the stems sit above the washes but below every label ---- */
+  const leaders = svgEl("g", {"data-leaderlayer":"1", "pointer-events":"none"});
+  svg.appendChild(leaders);
+  /* ---- pass 2: the events themselves ---- */
+  groupMeta.forEach(m => {
+    const {grp, row, cy, top} = m;
+    /* in a machine lane the host owns the colour: the markers and the bars
+       wear it, and the category is the small chip that rides along */
+    const cat = {id: grp.machine, label: grp.machine, color: machineColor(grp.machine)};
+    row.items.forEach(it => {
+      const e = it.e;
+      const g = evGroup(svg, e);
+      if (numbers){
+        const sy = top + 5 + it.sub * SW.rowH + SW.rowH / 2;
+        if (e.end != null) drawDurationBar(g, x, sy, 10, e, cat);
+        const p = {ev:e, cat, cy:sy};
+        lanePins.push(p);
+        pins.push(p);
+        return;
+      }
+      if (e.end != null) drawDurationBar(g, x, cy, 10, e, cat);
+      const dy = cy + (it.dotOff || 0);
+      const r = both ? SW.dotR : SW.dotR2;
+      if (both) drawPin(g, it.cx, dy, labelNums.get(e.id), eventMarkColor(e, cat), e.confidence, r);
+      else markerShape(g, it.cx, dy, cat, e.confidence, r, eventMarkColor(e, cat));
+      if (state.view.selected === e.id) drawSelectionRing(g, it.cx, dy, r);
+      if (it.track >= 0){
+        const ty = swimTrackY(it.track, cy, row.band);
+        drawLeader(leaders, it.cx, dy, it.lx, ty, r);
+        let tx = it.lx;
+        if (it.timeTxt){
+          svgText(g, tx, ty, it.timeTxt, {size:9.5, weight:600, fill:TC.muted});
+          tx += it.timeW;
+        }
+        svgText(g, tx, ty, it.txt, {size:10.5, weight:500});
+        /* the category rides on the event as a chip of its own colour */
+        if (it.markW){
+          const ccat = catById(e.category);
+          if (ccat)
+            g.appendChild(svgEl("rect", {x:it.lx + it.timeW + it.w + 7, y:ty - 8, width:10, height:10, rx:2.5,
+              fill:ccat.color, "data-catmark":ccat.id}));
+        }
+      }
+      if (both) legendPins.push({ev:e, cat, n:labelNums.get(e.id)});
+    });
+  });
+  finalizePins(lanePins);
+  lanePins.forEach(p => {
+    const g = evGroup(svg, p.ev);
+    const cx = x(clamp(p.ev.timestamp, d0, d1));
+    if (p.ev.end != null) drawDurationBar(g, x, p.cy, 10, p.ev, p.cat);
+    drawPin(g, cx, p.cy, p.n, p.cat.color, p.ev.confidence);
+    if (state.view.selected === p.ev.id) drawSelectionRing(g, cx, p.cy, 9.5);
+  });
+  if (both) legendPins.push(...lanePins.map(p => ({ev:p.ev, cat:p.cat, n:labelNums.get(p.ev.id)})));
+  drawAxis(svg, x, pl, pr, y0 + headerH, axisY, d0, d1);
+  return headerH + totalH + 52;
+}
+
+function renderMilestones(svg, x, y0, d0, d1, pins){
+  const pl = 40, pr = W - PADR;
+  const evs = visibleEvents()
+    .filter(e => inWindow(e, d0, d1))
+    .sort((a, b) => a.timestamp - b.timestamp);
+  const cardH = 39, cardMaxW = 244;
+  const both = state.view.labelMode === "both";
+  const cap = state.view.labelMode === "labels" ? 8 : 4;
+  const items = evs.map((e, i) => {
+    const title = truncateTo(e.title, 11, 600, cardMaxW - 20);
+    let timeStr = fmtShort(e.timestamp);
+    if (e.end != null) timeStr += ` \u2192 ${fmtShort(e.end)}`;
+    const mach = (e.machine || "").trim();
+    const w = Math.max(measure(title, 11, 600).w + (both ? 22 : 0),
+      measure(timeStr, 9.5, 400).w + (mach ? measure(mach, 9.5, 600).w + 12 : 0)) + 20;
+    const cat = catById(e.category) || {color:PALETTE[0], label:"?"};
+    let cx;
+    if (e.end != null) cx = (x(clamp(e.timestamp, d0, d1)) + x(clamp(e.end, d0, d1))) / 2;
+    else cx = x(clamp(e.timestamp, d0, d1));
+    return {ev:e, cat, cx, w, title, timeStr, mach, prefer: i % 2 === 0 ? "above" : "below"};
+  });
+  const layout = state.view.labelMode === "numbers"
+    ? items.map(it => ({mode:"pin", it}))
+    : layoutSlots(items, cap, pl, pr);
+  let maxA = 0, maxB = 0;
+  layout.forEach(L => {
+    if (L.mode === "card"){
+      if (L.side === "above") maxA = Math.max(maxA, L.slot + 1);
+      else maxB = Math.max(maxB, L.slot + 1);
+    }
+  });
+  const stride = cardH + 10;
+  const headerH = 22;
+  /* the axis carries its own date labels, so the cards below it start clear
+     of them rather than landing on top */
+  const BELOW = 32;
+  /* two events at the same instant would land on the same spot, so the
+     leftovers get their own line above the axis */
+  const pinRows = [];
+  layout.forEach(L => {
+    if (L.mode !== "pin") return;
+    const sx = x(clamp(L.it.ev.timestamp, d0, d1));
+    let r = 0;
+    for (; r < 8; r++){
+      if (pinRows[r] === undefined || sx - 9.5 >= pinRows[r]){ pinRows[r] = sx + 9.5; break; }
+    }
+    L.it.pinRow = r;
+  });
+  const extraAbove = 14 * Math.max(0, pinRows.length - 1);
+  const axisY = y0 + headerH + 14 + maxA * stride + 16 + extraAbove;
+  const height = headerH + 14 + maxA * stride + 16 + extraAbove + BELOW + maxB * stride + 42;
+  drawTimeBands(svg, x, d0, d1, y0, axisY + BELOW + maxB * stride + 20, headerH);
+  drawAxis(svg, x, pl, pr, y0 + headerH, axisY, d0, d1);
+  layout.forEach(L => {
+    const e = L.it.ev, cat = L.it.cat;
+    const num = labelNums.get(e.id);
+    if (L.mode === "pin"){
+      if (both){ pins.push({ev:e, cat, n:num, row:L.it.pinRow || 0}); legendPins.push({ev:e, cat, n:num}); }
+      else pins.push({ev:e, cat, row:L.it.pinRow || 0});
+      return;
+    }
+    const g = evGroup(svg, e);
+    const sx = x(clamp(e.timestamp, d0, d1));
+    if (e.end != null) drawDurationBar(g, x, axisY, 8, e, cat);
+    if (both){
+      drawPin(g, sx, axisY, num, cat.color, e.confidence, 8);
+      legendPins.push({ev:e, cat, n:num});
+    } else {
+      markerShape(g, sx, axisY, cat, e.confidence, 6, eventMarkColor(e, cat));
+    }
+    if (state.view.selected === e.id) drawSelectionRing(g, sx, axisY, both ? 8 : 6);
+    const cardY = L.side === "above"
+      ? axisY - 16 - extraAbove - cardH - L.slot * stride
+      : axisY + BELOW + L.slot * stride;
+    g.appendChild(svgEl("rect", {x:L.cx - L.w/2, y:cardY, width:L.w, height:cardH, rx:7,
+      fill:TC.chip, stroke:TC.border, "stroke-width":1}));
+    g.appendChild(svgEl("rect", {x:L.cx - L.w/2, y:cardY, width:3.5, height:cardH, rx:1.75, fill:cat.color}));
+    if (both) svgText(g, L.cx - L.w/2 + 12, cardY + 15, `${num}. ${L.it.title}`, {size:11, weight:600});
+    else svgText(g, L.cx - L.w/2 + 12, cardY + 15, L.it.title, {size:11, weight:600});
+    svgText(g, L.cx - L.w/2 + 12, cardY + 30, L.it.timeStr, {size:9.5, fill:TC.muted});
+    if (L.it.mach){
+      const mw = measure(L.it.timeStr, 9.5, 400).w;
+      svgText(g, L.cx - L.w/2 + 12 + mw + 6, cardY + 30, `· ${L.it.mach}`,
+        {size:9.5, weight:600, fill:machineColor(L.it.mach), attrs:{"data-mmark":L.it.mach}});
+    }
+    const ly1 = L.side === "above" ? cardY + cardH : axisY + 7;
+    const ly2 = L.side === "above" ? axisY - 7 : cardY;
+    g.appendChild(svgEl("line", {x1:sx, y1:ly1, x2:L.cx, y2:ly2, stroke:TC.axis, "stroke-width":1}));
+  });
+  finalizePins(pins);
+  pins.forEach(p => {
+    const g = evGroup(svg, p.ev);
+    const sx = x(clamp(p.ev.timestamp, d0, d1));
+    const py = axisY - 14 * (p.row || 0);
+    if (p.ev.end != null) drawDurationBar(g, x, axisY, 8, p.ev, p.cat);
+    drawPin(g, sx, py, both ? labelNums.get(p.ev.id) : p.n, p.cat.color, p.ev.confidence, both ? 8 : 9.5);
+    if (state.view.selected === p.ev.id) drawSelectionRing(g, sx, py, both ? 8 : 9.5);
+  });
+  return height;
+}
+function renderDensity(svg, y0, pins){
+  const f = fullDomain();
+  const [hf0, hf1] = f;
+  const pl = 40, pr = W - PADR;
+  const hx = t => pl + (t - hf0) / (hf1 - hf0) * (pr - pl);
+  const headerH = 22;
+  const histTop = y0 + headerH, histH = 104;
+  const cats = activeCats();
+  const evs = visibleEvents();
+  const buckets = 48, bw = (pr - pl) / buckets;
+  const grid = Array.from({length: buckets}, () => new Array(cats.length).fill(0));
+  evs.forEach(e => {
+    let bi = Math.floor((e.timestamp - hf0) / (hf1 - hf0) * buckets);
+    bi = clamp(bi, 0, buckets - 1);
+    const ci = cats.findIndex(c => c.id === e.category);
+    if (ci >= 0) grid[bi][ci]++;
+  });
+  let maxT = 1;
+  grid.forEach(row => { let s = 0; row.forEach(v => s += v); if (s > maxT) maxT = s; });
+  const axisY = histTop + histH + 26;
+  const [d0, d1] = activeDomain();
+  const dx = t => pl + (t - d0) / (d1 - d0) * (pr - pl);
+  const devs = evs.filter(e => inWindow(e, d0, d1)).sort((a, b) => a.timestamp - b.timestamp);
+  const cardH = 26, cardMaxW = 170, cap = 3;
+  const ditems = devs.map((e, i) => {
+    const title = truncateTo(e.title, 10, 500, cardMaxW - 16);
+    const w = measure(title, 10, 500).w + 14;
+    const cat = catById(e.category) || {color:PALETTE[0], label:"?"};
+    const cx = e.end != null ? (dx(clamp(e.timestamp,d0,d1)) + dx(clamp(e.end,d0,d1))) / 2 : dx(clamp(e.timestamp, d0, d1));
+    return {ev:e, cat, cx, w, title, prefer: i % 2 === 0 ? "above" : "below"};
+  });
+  const dlayout = state.view.labelMode === "numbers"
+    ? ditems.map(it => ({mode:"pin", it}))
+    : layoutSlots(ditems, cap, pl, pr);
+  const both = state.view.labelMode === "both";
+  let dA = 0, dB = 0;
+  dlayout.forEach(L => {
+    if (L.mode === "card"){
+      if (L.side === "above") dA = Math.max(dA, L.slot + 1);
+      else dB = Math.max(dB, L.slot + 1);
+    }
+  });
+  const dstride = cardH + 8;
+  /* the detail band starts below the histogram's axis labels, and drops
+     further when the cards above the baseline need the extra room */
+  const dTopExtra = Math.max(0, dA * dstride - 37);
+  const dTop = axisY + 26 + dTopExtra;
+  const baseline = dTop + 82;
+  /* two events at the same instant would land on the same spot, so the
+     leftovers get their own line above the baseline */
+  const dPinRows = [];
+  dlayout.forEach(L => {
+    if (L.mode !== "pin") return;
+    const sx = dx(clamp(L.it.ev.timestamp, d0, d1));
+    let r = 0;
+    for (; r < 8; r++){
+      if (dPinRows[r] === undefined || sx - 9.5 >= dPinRows[r]){ dPinRows[r] = sx + 9.5; break; }
+    }
+    L.it.pinRow = r;
+  });
+  const dExtra = 14 * Math.max(0, dPinRows.length - 1);
+  const dRegionTop = baseline - 13 - dExtra - dA * dstride - cardH - 4;
+  const dRegionBottom = baseline + 32 + dB * dstride + 8;
+  drawTimeBands(svg, hx, hf0, hf1, y0, axisY, headerH);
+  drawTimeBands(svg, dx, d0, d1, dRegionTop, dRegionBottom, 0);
+  grid.forEach((row, bi) => {
+    let yy = histTop + histH;
+    row.forEach((v, ci) => {
+      if (!v) return;
+      const hh = v / maxT * (histH - 6);
+      yy -= hh;
+      svg.appendChild(svgEl("rect", {x:pl + bi * bw + 0.7, y:yy, width:bw - 1.4, height:hh,
+        fill:cats[ci].color, "fill-opacity":0.85}));
+    });
+  });
+  drawAxis(svg, hx, pl, pr, histTop, axisY, hf0, hf1);
+  if (state.view.zoom){
+    /* Highlight the region the detail band below is actually showing. */
+    const a = clamp(Math.min(hx(d0), hx(d1)), pl, pr), b = clamp(Math.max(hx(d0), hx(d1)), pl, pr);
+    svg.appendChild(svgEl("rect", {x:pl, y:histTop - 4, width:Math.max(0, a - pl), height:histH + 4, fill:TC.fg, "fill-opacity":0.1}));
+    svg.appendChild(svgEl("rect", {x:b, y:histTop - 4, width:Math.max(0, pr - b), height:histH + 4, fill:TC.fg, "fill-opacity":0.1}));
+    svg.appendChild(svgEl("rect", {x:a, y:histTop - 4, width:Math.max(0, b - a), height:histH + 4,
+      fill:"none", stroke:TC.accent, "stroke-width":1.6, "stroke-dasharray":"5 3"}));
+  }
+  svg.appendChild(svgEl("rect", {x:pl, y:histTop - 4, width:pr - pl, height:histH + 4,
+    fill:"transparent", "data-brush":"1", style:"cursor:crosshair"}));
+  svg.appendChild(svgEl("line", {x1:pl, y1:baseline, x2:pr, y2:baseline, stroke:TC.axis, "stroke-width":1.2}));
+  dlayout.forEach(L => {
+    const e = L.it.ev, cat = L.it.cat;
+    const num = labelNums.get(e.id);
+    if (L.mode === "pin"){
+      if (both){ pins.push({ev:e, cat, n:num, row:L.it.pinRow || 0}); legendPins.push({ev:e, cat, n:num}); }
+      else pins.push({ev:e, cat, row:L.it.pinRow || 0});
+      return;
+    }
+    const g = evGroup(svg, e);
+    const sx = dx(clamp(e.timestamp, d0, d1));
+    if (e.end != null) drawDurationBar(g, dx, baseline, 6, e, cat);
+    if (both){
+      drawPin(g, sx, baseline, num, cat.color, e.confidence, 7);
+      legendPins.push({ev:e, cat, n:num});
+    } else {
+      markerShape(g, sx, baseline, cat, e.confidence, 5, eventMarkColor(e, cat));
+    }
+    if (state.view.selected === e.id) drawSelectionRing(g, sx, baseline, both ? 7 : 5);
+    const cardY = L.side === "above" ? baseline - 13 - dExtra - cardH - L.slot * dstride : baseline + 32 + L.slot * dstride;
+    g.appendChild(svgEl("rect", {x:L.cx - L.w/2, y:cardY, width:L.w, height:cardH, rx:6,
+      fill:TC.chip, stroke:TC.border, "stroke-width":1}));
+    const mach = (e.machine || "").trim();
+    if (mach)
+      g.appendChild(svgEl("rect", {x:L.cx - L.w/2, y:cardY, width:3.5, height:cardH, rx:1.75,
+        fill:machineColor(mach), "data-mmark":mach}));
+    if (both) svgText(g, L.cx - L.w/2 + 8, cardY + 17, `${num}. ${L.it.title}`, {size:10, weight:500});
+    else svgText(g, L.cx - L.w/2 + 8, cardY + 17, L.it.title, {size:10, weight:500});
+    const ly1 = L.side === "above" ? cardY + cardH : baseline + 7;
+    const ly2 = L.side === "above" ? baseline - 7 : cardY;
+    g.appendChild(svgEl("line", {x1:sx, y1:ly1, x2:L.cx, y2:ly2, stroke:TC.axis, "stroke-width":1}));
+  });
+  finalizePins(pins);
+  pins.forEach(p => {
+    const g = evGroup(svg, p.ev);
+    const sx = dx(clamp(p.ev.timestamp, d0, d1));
+    const py = baseline - 14 * (p.row || 0);
+    if (p.ev.end != null) drawDurationBar(g, dx, baseline, 6, p.ev, p.cat);
+    drawPin(g, sx, py, both ? labelNums.get(p.ev.id) : p.n, p.cat.color, p.ev.confidence, both ? 7 : 9.5);
+    if (state.view.selected === p.ev.id) drawSelectionRing(g, sx, py, both ? 7 : 8.5);
+  });
+  if (both) legendPins.push(...pins.map(p => ({ev:p.ev, cat:p.cat, n:labelNums.get(p.ev.id)})));
+  return histH + 26 + 26 + dTopExtra + 82 + 13 + dExtra + dA * dstride + dB * dstride + 30;
+}
+function escapeHtml(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function cap(s){ return String(s||"").charAt(0).toUpperCase() + String(s||"").slice(1); }
+function fmtHMS(ms){
+  const p = tzParts(ms);
+  const p2 = n => String(n).padStart(2, "0");
+  return `${p2(p.hh)}:${p2(p.mi)}:${p2(p.ss)}`;
+}
+function buildReportSVG(){
+  TC = themeColors();
+  const evs = visibleEvents();
+  const svg = svgEl("svg", {width:W, height:600, viewBox:`0 0 ${W} 600`, "font-family":FONT});
+  svg.appendChild(svgEl("rect", {x:0, y:0, width:W, height:600, fill:TC.panel}));
+  if (!evs.length){ drawEmpty(svg, 420); return svg; }
+  const counts = {};
+  /* the legend counts every event in the category, so a hidden one still
+     shows how many events it is holding back */
+  state.events.forEach(e => {
+    if (!e.hidden) counts[e.category] = (counts[e.category] || 0) + 1;
+  });
+  const dom = activeDomain();
+  dom0 = dom[0]; dom1 = dom[1];
+  const pl = state.view.mode === "swimlane" ? (state.view.groupBy === "machine" ? MACH_GUT : GUTTER) : 40;
+  const x = t => pl + (t - dom0) / (dom1 - dom0) * (W - PADR - pl);
+  /* "Both" mode numbers every visible event in chronological order, so a
+     number always identifies one event. */
+  labelNums = new Map();
+  legendPins = [];
+  const both = state.view.labelMode === "both";
+  if (both){
+    visibleEvents()
+      .filter(e => inWindow(e, dom0, dom1))
+      .slice().sort((a, b) => a.timestamp - b.timestamp)
+      .forEach((e, i) => labelNums.set(e.id, i + 1));
+  }
+  drawTitleBlock(svg, evs);
+  const legendLines = drawLegendRow(svg, 88, counts);
+  const chartTop = 118 + (legendLines - 1) * 22;
+  const pins = [];
+  let chartH;
+  if (state.view.mode === "swimlane") chartH = renderSwimlane(svg, x, chartTop, dom0, dom1, pins);
+  else if (state.view.mode === "milestones") chartH = renderMilestones(svg, x, chartTop, dom0, dom1, pins);
+  else chartH = renderDensity(svg, chartTop, pins);
+  let y = chartTop + chartH;
+  const keyItems = both && legendPins.length ? legendPins.slice().sort((a, b) => a.n - b.n) : pins;
+  if (keyItems.length){
+    const lgH = pinsLegend(svg, y + 12, keyItems);
+    y += lgH + 22;
+  }
+  drawFooter(svg, y + 18);
+  const H = y + 62;
+  svg.setAttribute("height", H);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.children[0].setAttribute("height", H);
+  return svg;
+}
+function renderReport(){
+  const holder = $("#report");
+  holder.replaceChildren();
+  const svg = buildReportSVG();
+  holder.appendChild(svg);
+  bindChartEvents(svg);
+}
+function render(){
+  syncControls();
+  renderReport();
+  renderEditor();
+  updateUndoBtn();
+  saveLocal();
+}
+function syncControls(){
+  const lb = $("#labelMode"), gb = $("#groupBy");
+  if (lb && lb.value !== state.view.labelMode) lb.value = state.view.labelMode;
+  if (gb && gb.value !== (state.view.groupBy || "category")) gb.value = state.view.groupBy || "category";
+  $$("#modeSwitch button").forEach(x => x.classList.toggle("on", x.dataset.mode === state.view.mode));
+  /* the range fields follow the state, but never while the analyst is typing
+     in them */
+  const rf = $("#rngFrom"), rt = $("#rngTo");
+  if (rf && rt){
+    const r = state.view.range || {};
+    if (document.activeElement !== rf) rf.value = r.from != null ? msToInput(r.from) : "";
+    if (document.activeElement !== rt) rt.value = r.to != null ? msToInput(r.to) : "";
+  }
+  syncTzSelect();
+  const zi = $("#zoomInfo");
+  if (zi){
+    const r = zoomRatio();
+    zi.textContent = r > 1.02 ? Math.round(r) + "%" : "100%";
+    zi.title = state.view.zoom
+      ? "Zoomed to " + Math.round(r) + "% of the timeline \u2014 click Fit to reset"
+      : "Showing the whole timeline";
+    zi.style.color = state.view.zoom ? "var(--accent)" : "var(--muted)";
+    zi.style.cursor = state.view.zoom ? "pointer" : "default";
+  }
+}
+function updateUndoBtn(){ $("#btnUndo").disabled = !undoStack.length; }
+function pushUndo(){
+  undoStack.push(JSON.stringify({doc:state.doc, categories:state.categories, events:state.events}));
+  if (undoStack.length > 50) undoStack.shift();
+  updateUndoBtn();
+}
+function doUndo(){
+  const s = undoStack.pop();
+  updateUndoBtn();
+  if (!s){ toast("Nothing to undo"); return; }
+  try {
+    const o = JSON.parse(s);
+    state.doc = o.doc; state.categories = o.categories; state.events = o.events;
+  } catch(e){ toast("Undo failed", "err"); return; }
+  if (state.view.selected && !state.events.some(e => e.id === state.view.selected)) state.view.selected = null;
+  render();
+  toast("Undo applied");
+}
+/* Drag the chart sideways to move through time. The pointer is bound to the
+   report holder, which survives every re-render, so a drag keeps working
+   while the chart is redrawn underneath it. */
+let panState = null, panMoved = false, panRaf = 0;
+function plotLeft(){
+  if (state.view.mode === "swimlane")
+    return state.view.groupBy === "machine" ? MACH_GUT : GUTTER;
+  return 40;
+}
+function bindPan(holder){
+  holder.addEventListener("mousedown", e => {
+    if (e.button !== 0) return;
+    const core = coreDomain();
+    if (!core) return;
+    panState = {x: e.clientX, dom: core};
+    panMoved = false;                 /* a new gesture starts fresh */
+    holder.classList.add("panning");
+  });
+  holder.addEventListener("mousemove", e => {
+    if (!panState) return;
+    const dx = e.clientX - panState.x;
+    if (!panMoved && Math.abs(dx) < 3) return;
+    panMoved = true;
+    const pw = Math.max(1, (W - PADR) - plotLeft());
+    const k = (panState.dom[1] - panState.dom[0]) / pw;      /* time per pixel */
+    const shift = -dx * k;
+    state.view.zoom = [Math.round(panState.dom[0] + shift), Math.round(panState.dom[1] + shift)];
+    panState.x = e.clientX;
+    panState.dom = [state.view.zoom[0], state.view.zoom[1]];
+    if (!panRaf) panRaf = requestAnimationFrame(() => { panRaf = 0; render(); });
+  });
+  const end = () => {
+    if (!panState) return;
+    panState = null;
+    holder.classList.remove("panning");
+  };
+  holder.addEventListener("mouseup", end);
+  holder.addEventListener("mouseleave", end);
+  window.addEventListener("mouseup", end);
+}
+function bindChartEvents(svg){
+  const tip = $("#tooltip");
+  const moveTip = e => {
+    const pad = 16;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const r = tip.getBoundingClientRect();
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  };
+  svg.querySelectorAll("[data-eid]").forEach(g => {
+    const ev = state.events.find(z => z.id === g.getAttribute("data-eid"));
+    if (!ev) return;
+    const show = e => {
+      const cat = catById(ev.category);
+      const time = ev.end != null
+        ? `${fmtDT(ev.timestamp)} \u2013 ${fmtDT(ev.end)}  (${fmtDur(ev.timestamp, ev.end)})`
+        : fmtDT(ev.timestamp);
+      tip.innerHTML =
+        `<div class="tt-title">${escapeHtml(ev.title)}</div>` +
+        `<div class="tt-time">${time}</div>` +
+        (cat ? `<div class="tt-time"><span class="catdot" style="background:${cat.color}"></span>${escapeHtml(cat.label)}</div>` : "") +
+        (ev.description ? `<div class="tt-desc">${escapeHtml(ev.description)}</div>` : "") +
+        (ev.source ? `<div class="tt-meta">Source: ${escapeHtml(ev.source)}</div>` : "") +
+        (ev.machine ? `<div class="tt-meta">Machine: ${escapeHtml(ev.machine)}</div>` : "") +
+        `<div class="tt-meta">Confidence: ${cap(ev.confidence)}</div>`;
+      tip.style.display = "block";
+      moveTip(e);
+    };
+    g.addEventListener("pointerenter", show);
+    g.addEventListener("pointermove", moveTip);
+    g.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+    g.addEventListener("click", e => {
+      e.stopPropagation();
+      if (panMoved){ panMoved = false; return; }      /* that was a drag, not a click */
+      openEventInEditor(ev.id);
+    });
+  });
+  svg.querySelectorAll("[data-catid]").forEach(g => {
+    g.addEventListener("click", e => {
+      e.stopPropagation();
+      const cat = catById(g.getAttribute("data-catid"));
+      if (!cat) return;
+      cat.enabled = cat.enabled === false;
+      render();
+    });
+  });
+  const ovl = svg.querySelector("[data-brush]");
+  if (ovl) bindBrush(svg, ovl);
+  /* clicking the empty plot clears the selection and empties the form */
+  svg.addEventListener("click", e => {
+    if (panMoved){ panMoved = false; return; }      /* that was a drag, not a click */
+    const t = e.target;
+    if (t && t.closest && t.closest("[data-eid],[data-catid]")) return;
+    if (!state.view.selected && evFormMode !== "edit") return;
+    state.view.selected = null;
+    loadEventForm(null);
+    render();
+  });
+}
+function bindBrush(svg, ovl){
+  const f = fullDomain();
+  if (!f) return;
+  const [f0, f1] = f;
+  const pl = 40, pr = W - PADR;
+  const inv = xv => f0 + (xv - pl) / (pr - pl) * (f1 - f0);
+  const sx = e => {
+    const r = svg.getBoundingClientRect();
+    return clamp((e.clientX - r.left) * (W / r.width), pl, pr);
+  };
+  let drag = null, selRect = null;
+  const oy = parseFloat(ovl.getAttribute("y")), oh = parseFloat(ovl.getAttribute("height"));
+  ovl.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    drag = {x0: sx(e)};
+    selRect = svgEl("rect", {x:drag.x0, y:oy, width:0, height:oh,
+      fill:TC.accent, "fill-opacity":0.12, stroke:TC.accent, "stroke-width":1, "stroke-dasharray":"4 3"});
+    svg.appendChild(selRect);
+    try { ovl.setPointerCapture(e.pointerId); } catch(err){}
+  });
+  ovl.addEventListener("pointermove", e => {
+    if (!drag || !selRect) return;
+    const x1 = sx(e);
+    selRect.setAttribute("x", Math.min(drag.x0, x1));
+    selRect.setAttribute("width", Math.abs(x1 - drag.x0));
+  });
+  ovl.addEventListener("pointerup", e => {
+    if (!drag) return;
+    const x1 = sx(e);
+    if (selRect){ selRect.remove(); selRect = null; }
+    if (Math.abs(x1 - drag.x0) > 6){
+      let t0 = inv(Math.min(drag.x0, x1)), t1 = inv(Math.max(drag.x0, x1));
+      if (t1 - t0 < 6e4) t1 = t0 + 6e4;
+      state.view.zoom = [Math.round(t0), Math.round(t1)];
+      render();
+      toast("Zoomed to selection \u2014 double-click the histogram to reset");
+    }
+    drag = null;
+  });
+  ovl.addEventListener("dblclick", () => {
+    if (state.view.zoom){ state.view.zoom = null; render(); toast("Zoom reset"); }
+  });
+}
+function editorFocusBlocked(){
+  const ae = document.activeElement;
+  if (!ae) return false;
+  const ed = $("#editor");
+  if (!ed || !ed.contains(ae)) return false;
+  const tag = ae.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT" && !["checkbox","button","file","submit","reset"].includes(ae.type)) return true;
+  return false;
+}
+function renderEditor(){
+  if (editorFocusBlocked()) return;
+  $("#docTitle").value = state.doc.title;
+  $("#docCase").value = state.doc.caseId;
+  $("#docAnalyst").value = state.doc.analyst;
+  $("#docTz").value = state.doc.timezone;
+  renderCatList();
+  renderCatSelect();
+  renderMachList();
+  renderEvTable();
+}
+function renderMachList(){
+  const box = $("#machList");
+  if (!box) return;
+  box.replaceChildren();
+  const names = machineNames();
+  $("#machSec").classList.toggle("hidden", !names.length);
+  if (!names.length) return;
+  names.forEach(name => {
+    const n = state.events.filter(e => !e.hidden && (e.machine || "").trim() === name).length;
+    const row = document.createElement("div");
+    row.className = "machrow";
+    const auto = machineBaseColor(name);
+    const overridden = !!(state.view.machineColors && state.view.machineColors[name]);
+    const color = document.createElement("input");
+    color.type = "color";
+    color.value = machineColor(name);
+    color.title = overridden ? "Machine color (custom)" : "Machine color (auto)";
+    color.addEventListener("input", () => {
+      if (!state.view.machineColors) state.view.machineColors = {};
+      if (color.value === auto) delete state.view.machineColors[name];
+      else state.view.machineColors[name] = color.value;
+      render();
+    });
+    color.addEventListener("dblclick", () => {
+      if (state.view.machineColors) delete state.view.machineColors[name];
+      render();
+      toast(`${name}: back to automatic color`);
+    });
+    const label = document.createElement("span");
+    label.className = "mname";
+    label.textContent = name;
+    label.title = overridden ? `${name} — custom color (double-click the swatch to reset)` : `${name} — automatic color`;
+    const cnt = document.createElement("span");
+    cnt.className = "cnt";
+    cnt.textContent = String(n);
+    row.append(color, label, cnt);
+    box.appendChild(row);
+  });
+  const note = document.createElement("div");
+  note.className = "empty-note";
+  note.textContent = "Click a swatch to set a machine's color; double-click it to reset to automatic.";
+  box.appendChild(note);
+}
+function renderCatList(){
+  const box = $("#catList");
+  box.replaceChildren();
+  state.categories.forEach(cat => {
+    const n = state.events.filter(e => !e.hidden && e.category === cat.id).length;
+    const row = document.createElement("div");
+    row.className = "catrow";
+    const color = document.createElement("input");
+    color.type = "color";
+    color.value = cat.color;
+    color.title = "Category color";
+    let nudged = false;
+    color.addEventListener("input", () => {
+      const want = color.value;
+      const got = safeCategoryColor(want);
+      if (got !== want){ color.value = got; nudged = true; }
+      cat.color = got;
+      render();
+    });
+    color.addEventListener("change", () => {
+      if (nudged){ nudged = false; toast("Red is reserved for malicious events \u2014 the category colour was moved out of the red band"); }
+    });
+    const label = document.createElement("input");
+    label.type = "text";
+    label.value = cat.label;
+    label.addEventListener("input", () => { cat.label = label.value || cat.id; render(); });
+    const cnt = document.createElement("span");
+    cnt.className = "cnt";
+    cnt.textContent = String(n);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "mini";
+    del.textContent = "\u00d7";
+    del.title = "Delete category (its events move to another category)";
+    del.addEventListener("click", () => deleteCategory(cat.id));
+    row.append(color, label, cnt, del);
+    box.appendChild(row);
+  });
+  if (!state.categories.length) box.innerHTML = '<div class="empty-note">No categories yet \u2014 they are created automatically on import.</div>';
+}
+function deleteCategory(id){
+  if (state.categories.length <= 1 && state.events.length){
+    toast("Keep at least one category \u2014 events need somewhere to live", "err");
+    return;
+  }
+  const used = state.events.filter(e => e.category === id);
+  let target = state.categories.find(c => c.id !== id);
+  pushUndo();
+  if (used.length){
+    if (!target){
+      target = {id:"other", label:"Other", color:PALETTE[4], enabled:true};
+      state.categories.push(target);
+    }
+    used.forEach(e => e.category = target.id);
+  }
+  state.categories = state.categories.filter(c => c.id !== id);
+  if (!state.categories.length) state.categories.push({id:"other", label:"Other", color:PALETTE[0], enabled:true});
+  toast(used.length ? `Category deleted \u2014 ${used.length} event(s) moved` : "Category deleted");
+  render();
+}
+function renderCatSelect(){
+  const sel = $("#fCat");
+  const prev = sel.value;
+  sel.replaceChildren();
+  state.categories.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.label;
+    sel.appendChild(o);
+  });
+  if (prev && state.categories.some(c => c.id === prev)) sel.value = prev;
+  else if (state.categories.length) sel.selectedIndex = 0;
+}
+function cell(){ return document.createElement("td"); }
+function renderEvTable(){
+  const tb = $("#evTable tbody");
+  tb.replaceChildren();
+  const rows = state.events.slice().sort((a, b) => {
+    let r = 0;
+    if (evSort.key === "t") r = a.timestamp - b.timestamp;
+    else if (evSort.key === "title") r = a.title.localeCompare(b.title);
+    else if (evSort.key === "cat") r = (catById(a.category)||{label:""}).label.localeCompare((catById(b.category)||{label:""}).label);
+    else r = a.confidence.localeCompare(b.confidence);
+    return r * evSort.dir;
+  });
+  rows.forEach(ev => {
+    const cat = catById(ev.category);
+    const tr = document.createElement("tr");
+    tr.className = "evrow" + (state.view.selected === ev.id ? " sel" : "")
+      + (roleIsFraud(ev.role || "observed") ? " mal" : "");
+    tr.dataset.id = ev.id;
+    const td0 = cell();
+    const vis = document.createElement("input");
+    vis.type = "checkbox";
+    vis.checked = !ev.hidden;
+    vis.title = "Show/hide in timeline";
+    vis.addEventListener("click", e => e.stopPropagation());
+    vis.addEventListener("change", () => { pushUndo(); ev.hidden = !vis.checked; render(); });
+    td0.appendChild(vis);
+    const td1 = cell();
+    td1.className = "ev-time";
+    td1.textContent = fmtCompact(ev.timestamp) + (ev.end != null ? " \u2192" : "");
+    const td2 = cell();
+    td2.className = "ev-title";
+    if (ev.role && ev.role !== "observed"){
+      const mark = document.createElement("span");
+      mark.className = "rolemark " + (roleIsFraud(ev.role) ? "role-fraud" : "role-mile");
+      mark.textContent = roleIsFraud(ev.role) ? "!" : "\u25C6";
+      mark.title = roleIsFraud(ev.role)
+        ? "Malicious \u2014 shown in red in every view"
+        : "Milestone \u2014 the pivotal event of the case";
+      td2.appendChild(mark);
+    }
+    td2.appendChild(document.createTextNode(ev.title));
+    const td3 = cell();
+    td3.innerHTML = cat ? `<span class="catdot" style="background:${cat.color}"></span>${escapeHtml(cat.label)}` : "?";
+    const td4 = cell();
+    td4.className = "conf-" + ev.confidence;
+    td4.textContent = cap(ev.confidence);
+    tr.append(td0, td1, td2, td3, td4);
+    tr.addEventListener("click", () => selectEventRow(ev.id));
+    tb.appendChild(tr);
+  });
+  $("#evEmptyNote").classList.toggle("hidden", state.events.length > 0);
+  $$("#evTable th[data-sort]").forEach(th => {
+    const key = th.dataset.sort;
+    if (!th.dataset.base) th.dataset.base = th.textContent;
+    th.textContent = th.dataset.base + (evSort.key === key ? (evSort.dir > 0 ? " \u25b4" : " \u25be") : "");
+  });
+}
+function selectEventRow(id){
+  const ev = state.events.find(e => e.id === id);
+  if (!ev) return;
+  openEventInEditor(id);
+}
+/* The editor is the analyst's workbench for one event: clicking a dot (or a
+   label, or a row in the table) opens it, loads that event and points at the
+   form, so a change is never more than one click away. */
+function setEditorOpen(open){
+  const ed = $("#editor");
+  if (!ed) return;
+  const want = !!open;
+  const isOpen = !ed.classList.contains("collapsed");
+  if (want !== isOpen) ed.classList.toggle("collapsed", !want);
+  $("#btnEditor").classList.toggle("on", want);
+}
+function openEventInEditor(id){
+  const ev = state.events.find(z => z.id === id);
+  if (!ev) return;
+  setEditorOpen(true);
+  state.view.selected = id;
+  loadEventForm(ev);
+  render();
+  const sec = $("#evFormSec");
+  if (sec){
+    sec.classList.remove("flash");
+    void sec.offsetWidth;          /* restart the flash animation */
+    sec.classList.add("flash");
+    sec.scrollIntoView({behavior:"smooth", block:"nearest"});
+  }
+}
+function loadEventForm(ev){
+  evFormMode = ev ? "edit" : "add";
+  editingId = ev ? ev.id : null;
+  $("#evFormTitle").textContent = ev ? "Edit event" : "Add event";
+  $("#fTitle").value = ev ? ev.title : "";
+  $("#fTs").value = msToInput(ev ? ev.timestamp : Date.now());
+  $("#fEnd").value = ev && ev.end != null ? msToInput(ev.end) : "";
+  renderCatSelect();
+  const cat = ev ? catById(ev.category) : null;
+  if (cat) $("#fCat").value = cat.id;
+  else if (state.categories.length) $("#fCat").selectedIndex = 0;
+  $("#fConf").value = ev ? ev.confidence : "confirmed";
+  $("#fSource").value = ev ? ev.source : "";
+  $("#fMachine").value = ev ? (ev.machine || "") : "";
+  /* the malicious switch and the role dropdown are two halves of one value:
+     the switch owns "red", the dropdown owns "milestone" */
+  const role = ev ? (ROLES.indexOf(ev.role) >= 0 ? ev.role : "observed") : "observed";
+  $("#fRole").value = roleIsMilestone(role) ? "milestone" : "observed";
+  $("#fMal").checked = roleIsFraud(role);
+  $("#malWrap").classList.toggle("on", roleIsFraud(role));
+  $("#fDesc").value = ev ? ev.description : "";
+  $("#fHidden").checked = ev ? !!ev.hidden : false;
+  $("#fDelete").style.display = ev ? "" : "none";
+}
+$("#fMal").addEventListener("change", () => {
+  $("#malWrap").classList.toggle("on", $("#fMal").checked);
+});
+$("#evForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const title = $("#fTitle").value.trim();
+  /* an untouched time must come back untouched, down to the second */
+  const was = evFormMode === "edit" ? state.events.find(z => z.id === editingId) : null;
+  const ts = formTimeMs($("#fTs").value, was ? was.timestamp : null);
+  if (!title){ toast("Title is required", "err"); return; }
+  if (ts == null){ toast("A valid timestamp is required", "err"); return; }
+  let end = formTimeMs($("#fEnd").value, was && was.end != null ? was.end : null);
+  if (end != null && end <= ts){ toast("End must be after the start timestamp", "err"); return; }
+  if (!state.categories.length){
+    pushUndo();
+    state.categories.push({id:"other", label:"Other", color:PALETTE[0], enabled:true});
+  }
+  const catId = $("#fCat").value || state.categories[0].id;
+  const mile = $("#fRole").value === "milestone";
+  const role = $("#fMal").checked ? (mile ? "fraudMilestone" : "fraudulent")
+                                  : (mile ? "milestone" : "observed");
+  pushUndo();
+  if (evFormMode === "edit"){
+    const ev = state.events.find(z => z.id === editingId);
+    if (!ev){ toast("Event no longer exists", "err"); loadEventForm(null); return; }
+    Object.assign(ev, {
+      title, timestamp: ts, end, category: catId,
+      confidence: $("#fConf").value, source: $("#fSource").value.trim(),
+      machine: $("#fMachine").value.trim(),
+      role,
+      description: $("#fDesc").value.trim(), hidden: $("#fHidden").checked
+    });
+    toast("Event updated");
+  } else {
+    const ev = {
+      id: genId(), title, timestamp: ts, end, category: catId,
+      confidence: $("#fConf").value, source: $("#fSource").value.trim(),
+      machine: $("#fMachine").value.trim(),
+      role,
+      description: $("#fDesc").value.trim(), hidden: $("#fHidden").checked
+    };
+    state.events.push(ev);
+    state.view.selected = ev.id;
+    toast("Event added");
+  }
+  render();
+});
+$("#fDelete").addEventListener("click", () => {
+  if (evFormMode !== "edit" || !editingId) return;
+  pushUndo();
+  const i = state.events.findIndex(z => z.id === editingId);
+  if (i >= 0) state.events.splice(i, 1);
+  state.view.selected = null;
+  loadEventForm(null);
+  render();
+  toast("Event deleted \u2014 Ctrl+Z to undo");
+});
+$("#fCancel").addEventListener("click", () => loadEventForm(null));
+[["#docTitle","title"],["#docCase","caseId"],["#docAnalyst","analyst"]].forEach(pair => {
+  $(pair[0]).addEventListener("input", () => {
+    state.doc[pair[1]] = $(pair[0]).value;
+    if (pair[1] === "title" && !state.doc.title) state.doc.title = "Untitled timeline";
+    render();
+  });
+});
+/* The timezone is a real zone, picked from a list: choosing one recalculates
+   every time on the chart. A custom zone is still allowed. */
+const TZ_ZONES = [
+  "UTC","UTC+1","UTC+2","UTC+3","UTC+4","UTC+5","UTC+5:30","UTC+8","UTC+9","UTC+10",
+  "UTC-3","UTC-5","UTC-6","UTC-8","UTC-9",
+  "Europe/London","Europe/Dublin","Europe/Berlin","Europe/Paris","Europe/Madrid","Europe/Rome",
+  "Europe/Athens","Europe/Kyiv","Europe/Moscow","Europe/Sofia",
+  "America/Sao_Paulo","America/Mexico_City","America/New_York","America/Toronto",
+  "America/Chicago","America/Denver","America/Los_Angeles","America/Anchorage",
+  "Asia/Jerusalem","Asia/Dubai","Asia/Karachi","Asia/Kolkata","Asia/Bangkok","Asia/Shanghai",
+  "Asia/Singapore","Asia/Tokyo","Asia/Seoul",
+  "Australia/Perth","Australia/Sydney","Pacific/Auckland"
+];
+const TZ_CUSTOM = "__custom__";
+function buildTzSelect(){
+  const sel = $("#docTz");
+  if (!sel) return;
+  sel.replaceChildren();
+  const cur = tzLabel();
+  const list = TZ_ZONES.slice();
+  if (list.indexOf(cur) < 0) list.unshift(cur);
+  list.forEach(z => {
+    const o = document.createElement("option");
+    o.value = z; o.textContent = z;
+    sel.appendChild(o);
+  });
+  const co = document.createElement("option");
+  co.value = TZ_CUSTOM; co.textContent = "Other \u2026 (type a zone)";
+  sel.appendChild(co);
+}
+function syncTzSelect(){
+  const sel = $("#docTz"), custom = $("#docTzCustom");
+  if (!sel) return;
+  const cur = tzLabel();
+  const known = Array.prototype.slice.call(sel.options).some(o => o.value === cur);
+  sel.value = known ? cur : TZ_CUSTOM;
+  custom.classList.toggle("hidden", sel.value !== TZ_CUSTOM);
+  if (sel.value === TZ_CUSTOM && custom.value !== cur && !custom.dataset.touched) custom.value = cur;
+}
+$("#docTz").addEventListener("change", () => {
+  const sel = $("#docTz"), custom = $("#docTzCustom");
+  if (sel.value === TZ_CUSTOM){
+    custom.classList.remove("hidden");
+    custom.focus();
+    return;
+  }
+  state.doc.timezone = sel.value;
+  render();
+  toast(`Times recalculated for ${sel.value}`);
+});
+$("#docTzCustom").addEventListener("input", () => {
+  $("#docTzCustom").dataset.touched = "1";
+  const v = $("#docTzCustom").value.trim();
+  if (!v) return;
+  state.doc.timezone = v;
+  render();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape"){ closeModal(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+    e.preventDefault();
+    doUndo();
+  }
+});
+function saveLocal(){
+  try {
+    /* The zoom window is deliberately NOT persisted: a stale zoom restored on
+       reload left the chart showing a fraction of the timeline with no
+       obvious way back, which reads as "the zoom button is broken". */
+    const view = Object.assign({}, state.view);
+    delete view.zoom;
+    localStorage.setItem(LS_KEY, JSON.stringify({v:1, doc:state.doc, categories:state.categories, events:state.events, view}));
+  } catch(e){}
+}
+function loadLocalSession(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !Array.isArray(o.events) || !Array.isArray(o.categories) || !o.events.length) return null;
+    const st = freshState();
+    st.doc = Object.assign(st.doc, o.doc || {});
+    st.categories = o.categories;
+    st.events = o.events;
+    st.view = Object.assign(st.view, o.view || {});
+    st.view.zoom = null;
+    st.categories.forEach(c => { if (c.enabled === undefined) c.enabled = true; });
+    st.events.forEach(e => {
+      if (!e.id) e.id = genId();
+      if (!e.confidence) e.confidence = "confirmed";
+      if (e.description == null) e.description = "";
+      if (e.source == null) e.source = "";
+      if (e.machine == null) e.machine = "";
+      if (e.end != null && e.end <= e.timestamp) e.end = null;
+    });
+    return st;
+  } catch(e){ return null; }
+}
+function rasterize(scale){
+  return new Promise((resolve, reject) => {
+    const svg = $("#report svg");
+    if (!svg) return reject(new Error("Nothing to export"));
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", NS);
+    const w = parseFloat(svg.getAttribute("width"));
+    const hgt = parseFloat(svg.getAttribute("height"));
+    const str = new XMLSerializer().serializeToString(clone);
+    const url = URL.createObjectURL(new Blob([str], {type:"image/svg+xml;charset=utf-8"}));
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = Math.round(w * scale);
+      c.height = Math.round(hgt * scale);
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = themeColors().bg;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve({blob:b, w:c.width, h:c.height}) : reject(new Error("PNG encoding failed")), "image/png");
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("SVG rasterization failed")); };
+    img.src = url;
+  });
+}
+function downloadBlob(blob, name){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+function fileSlug(){ return slug(state.doc.title).slice(0, 60) || "timeline"; }
+function isoUTC(ms){ return new Date(ms).toISOString(); }
+function exportPayload(){
+  return {
+    format: "ftv-timeline",
+    schema: 1,
+    ftvVersion: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    title: state.doc.title || "Untitled timeline",
+    caseId: state.doc.caseId || "",
+    analyst: state.doc.analyst || "",
+    timezone: state.doc.timezone || "UTC",
+    view: {
+      mode: state.view.mode,
+      labelMode: state.view.labelMode,
+      groupBy: state.view.groupBy || "category",
+      machineColors: Object.assign({}, state.view.machineColors || {}),
+      machineSlots: Object.assign({}, state.view.machineSlots || {})
+    },
+    categories: state.categories.map(c => ({
+      id: c.id, label: c.label, color: c.color, enabled: c.enabled !== false
+    })),
+    events: state.events.map(e => {
+      const o = {
+        id: e.id,
+        timestamp: isoUTC(e.timestamp),
+        title: e.title,
+        description: e.description || "",
+        category: e.category,
+        source: e.source || "",
+        confidence: e.confidence || "confirmed"
+      };
+      if (e.end != null) o.end = isoUTC(e.end);
+      if (e.machine) o.machine = e.machine;
+      if (e.role && e.role !== "observed") o.role = e.role;
+      if (e.hidden) o.hidden = true;
+      return o;
+    })
+  };
+}
+function exportJSON(){
+  const payload = exportPayload();
+  const text = JSON.stringify(payload, null, 2);
+  downloadBlob(new Blob([text], {type:"application/json"}), fileSlug() + ".ftv.json");
+  toast(`Timeline exported \u2014 ${payload.events.length} events (${(text.length/1024).toFixed(1)} KB)`);
+}
+async function copyJSON(){
+  const text = JSON.stringify(exportPayload(), null, 2);
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error("no clipboard");
+    await navigator.clipboard.writeText(text);
+    toast("Timeline JSON copied to clipboard");
+  } catch(e){ toast("Clipboard unavailable \u2014 use Export JSON", "err"); }
+}
+async function exportPNG(){
+  if (!visibleEvents().length){ toast("Nothing to export \u2014 no events in the timeline", "err"); return; }
+  try {
+    const {blob} = await rasterize(2);
+    downloadBlob(blob, fileSlug() + ".png");
+    toast(`PNG exported at 2\u00d7 scale (${Math.round(blob.size/1024)} KB)`);
+  } catch(e){ toast(e.message, "err"); }
+}
+async function copyImage(){
+  if (!visibleEvents().length){ toast("Nothing to copy \u2014 no events in the timeline", "err"); return; }
+  if (!navigator.clipboard || !window.ClipboardItem){
+    toast("Clipboard images are not supported in this browser \u2014 use Export PNG", "err");
+    return;
+  }
+  try {
+    const {blob} = await rasterize(2);
+    await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
+    toast("Timeline image copied to clipboard");
+  } catch(e){ toast("Copy failed \u2014 use Export PNG instead", "err"); }
+}
+function applyTheme(){
+  document.body.dataset.theme = state.view.theme;
+  $("#btnTheme").textContent = "Theme: " + (state.view.theme === "light" ? "Light" : "Dark");
+}
+$("#btnTheme").addEventListener("click", () => {
+  state.view.theme = state.view.theme === "light" ? "dark" : "light";
+  applyTheme();
+  render();
+});
+$$("#modeSwitch button").forEach(b => {
+  b.addEventListener("click", () => {
+    state.view.mode = b.dataset.mode;
+    $$("#modeSwitch button").forEach(x => x.classList.toggle("on", x === b));
+    render();
+  });
+});
+$("#labelMode").addEventListener("change", e => { state.view.labelMode = e.target.value; render(); });
+$("#groupBy").addEventListener("change", e => {
+  state.view.groupBy = e.target.value;
+  if (e.target.value === "machine" && !visibleEvents().some(z => (z.machine || "").trim())){
+    toast("No machine/host values in this timeline yet \u2014 add a machine field to events", "err");
+  }
+  render();
+});
+
+/* ---- Add category (preset or custom) ---- */
+function populateCatPresets(){
+  const sel = $("#newCatPreset");
+  sel.replaceChildren();
+  CAT_PRESETS.forEach((p, i) => {
+    const o = document.createElement("option");
+    o.value = String(i);
+    o.textContent = p[0];
+    sel.appendChild(o);
+  });
+  const opt = document.createElement("option");
+  opt.value = "custom";
+  opt.textContent = "Custom\u2026 (type a name)";
+  sel.appendChild(opt);
+}
+function toggleCustomCatFields(){
+  $("#customCatFields").classList.toggle("hidden", $("#newCatPreset").value !== "custom");
+}
+function openCatAdd(){
+  populateCatPresets();
+  $("#newCatPreset").selectedIndex = 0;
+  $("#newCatLabel").value = "";
+  $("#newCatColor").value = "#2e6fb7";
+  toggleCustomCatFields();
+  $("#catAddForm").classList.remove("hidden");
+  $("#newCatPreset").focus();
+}
+function closeCatAdd(){ $("#catAddForm").classList.add("hidden"); }
+function addCategory(){
+  const v = $("#newCatPreset").value;
+  let label, color;
+  if (v === "custom"){
+    label = $("#newCatLabel").value.trim();
+    color = safeCategoryColor($("#newCatColor").value);
+    if (color !== $("#newCatColor").value) $("#newCatColor").value = color;
+  } else {
+    const p = CAT_PRESETS[Number(v)];
+    if (!p){ toast("Pick a category", "err"); return; }
+    label = p[0];
+    color = p[1];
+  }
+  if (!label){ toast("Enter a category name", "err"); return; }
+  if (state.categories.some(c => String(c.label).trim().toLowerCase() === label.toLowerCase())){
+    toast(`Category "${label}" already exists`, "err");
+    return;
+  }
+  let id = slug(label);
+  const base = id;
+  let i = 2;
+  while (catById(id)){ id = `${base}-${i}`; i++; }
+  pushUndo();
+  state.categories.push({id, label, color, enabled:true});
+  closeCatAdd();
+  render();
+  toast(`Category "${label}" added`);
+}
+$("#btnAddCat").addEventListener("click", openCatAdd);
+$("#newCatPreset").addEventListener("change", toggleCustomCatFields);
+$("#catAddOk").addEventListener("click", addCategory);
+$("#catAddCancel").addEventListener("click", closeCatAdd);
+$("#newCatLabel").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); addCategory(); } });
+$("#btnZoomIn").addEventListener("click", () => zoomBy(0.6));
+$("#btnZoomOut").addEventListener("click", () => zoomBy(1/0.6));
+$("#btnFit").addEventListener("click", fitZoom);
+/* the range limits what the chart shows: nothing outside it is drawn */
+function rangeField(which, el){
+  const v = el.value ? inputToMs(el.value) : null;
+  if (!state.view.range) state.view.range = {from:null, to:null};
+  if (which === "from"){
+    state.view.range.from = v;
+    if (state.view.range.to != null && state.view.range.to <= v) state.view.range.to = v + 1000;
+  } else {
+    state.view.range.to = v;
+    if (state.view.range.from != null && state.view.range.from >= v) state.view.range.from = v - 1000;
+  }
+  render();
+}
+$("#rngFrom").addEventListener("change", () => rangeField("from", $("#rngFrom")));
+$("#rngTo").addEventListener("change", () => rangeField("to", $("#rngTo")));
+$("#btnRangeAll").addEventListener("click", () => {
+  state.view.range = {from:null, to:null};
+  state.view.zoom = null;
+  render();
+});
+$("#zoomInfo").addEventListener("click", () => { if (state.view.zoom) fitZoom(); });
+$("#btnUndo").addEventListener("click", doUndo);
+$("#btnEditor").addEventListener("click", () => {
+  setEditorOpen($("#editor").classList.contains("collapsed"));
+});
+$("#btnDemo").addEventListener("click", () => {
+  loadDemo(true);
+  render();
+  toast("Demo timeline loaded (Ctrl+Z to undo)");
+});
+$("#btnPNG").addEventListener("click", exportPNG);
+$("#btnCopyImg").addEventListener("click", copyImage);
+$("#btnJSON").addEventListener("click", exportJSON);
+$("#btnCopyJSON").addEventListener("click", copyJSON);
+$("#btnImport").addEventListener("click", openModal);
+$("#btnCloseModal").addEventListener("click", closeModal);
+$("#modal").addEventListener("click", e => { if (e.target === $("#modal")) closeModal(); });
+$$(".tabs button").forEach(b => {
+  b.addEventListener("click", () => {
+    $$(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+    $("#tab-file").classList.toggle("hidden", b.dataset.tab !== "file");
+    $("#tab-paste").classList.toggle("hidden", b.dataset.tab !== "paste");
+  });
+});
+$("#fileInput").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (f) readFileImport(f);
+  e.target.value = "";
+});
+const dz = $("#dropzone");
+dz.addEventListener("click", e => { if (e.target === dz) $("#fileInput").click(); });
+dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("drag"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
+dz.addEventListener("drop", e => {
+  e.preventDefault();
+  dz.classList.remove("drag");
+  const f = e.dataTransfer.files[0];
+  if (f) readFileImport(f);
+});
+$("#btnPasteImport").addEventListener("click", () => {
+  const txt = $("#pasteArea").value;
+  if (!txt.trim()){
+    $("#importMsg").innerHTML = '<div class="imp-err">Nothing to import \u2014 paste data first.</div>';
+    return;
+  }
+  try {
+    const res = importText(txt, null);
+    applyImport(res);
+    showImportMsgs(res.msgs || [], res.events.length);
+    toast(`Imported ${res.events.length} events`);
+    setTimeout(closeModal, 700);
+  } catch(err){
+    $("#importMsg").innerHTML = `<div class="imp-err">${escapeHtml(err.message)}</div>` +
+      (err.msgs || []).slice(0, 8).map(m => `<div class="imp-${m.sev}">Row ${m.row}: ${escapeHtml(m.msg)}</div>`).join("");
+  }
+});
+$$("#evTable th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (evSort.key === key) evSort.dir *= -1;
+    else evSort = {key, dir: 1};
+    renderEvTable();
+  });
+});
+$("#btnAddEvent").addEventListener("click", () => {
+  loadEventForm(null);
+  $("#evFormSec").scrollIntoView({behavior:"smooth", block:"nearest"});
+});
+function init(){
+  $("#btnEditor").classList.add("on");
+  $("#verChip").textContent = "v" + APP_VERSION;
+  const saved = loadLocalSession();
+  if (saved){
+    state = saved;
+    toast("Restored your previous session");
+  } else {
+    loadDemo(false);
+    toast("Loaded the demo incident \u2014 import your own data any time");
+  }
+  if (!state.view.range) state.view.range = {from:null, to:null};
+  bindPan($("#report"));
+  applyTheme();
+  buildTzSelect();
+  $$("#modeSwitch button").forEach(x => x.classList.toggle("on", x.dataset.mode === state.view.mode));
+  $("#labelMode").value = state.view.labelMode;
+  $("#groupBy").value = state.view.groupBy || "category";
+  loadEventForm(null);
+  render();
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

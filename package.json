@@ -1,0 +1,19 @@
+{
+  "name": "forensic-timeline",
+  "version": "1.14.0",
+  "description": "Standalone single-file HTML forensic timeline visualizer: swimlane, milestones and density views for incident timelines and executive reporting. Zero dependencies, offline capable.",
+  "private": true,
+  "license": "MIT",
+  "author": "A. Tasheff",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/4553n/forensic-timeline.git"
+  },
+  "homepage": "https://github.com/4553n/forensic-timeline#readme",
+  "scripts": {
+    "test": "node test/smoke.js"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

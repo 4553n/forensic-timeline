@@ -1,0 +1,40 @@
+{
+  "title": "Incident IR-2026-042 — Timeline of Events",
+  "caseId": "IR-2026-042",
+  "analyst": "A. Tasheff",
+  "timezone": "UTC",
+  "categories": [
+    { "id": "initial-access", "label": "Initial Access", "color": "#c0392b" },
+    { "id": "execution", "label": "Execution", "color": "#cf7f1f" },
+    { "id": "c2", "label": "Command & Control", "color": "#2e6fb7" },
+    { "id": "lateral", "label": "Lateral Movement", "color": "#7d3c98" },
+    { "id": "exfil", "label": "Data Exfiltration", "color": "#0e8f8f" },
+    { "id": "containment", "label": "Containment & Recovery", "color": "#1e8449" }
+  ],
+  "events": [
+    { "timestamp": "2026-10-08T16:05:00Z", "title": "Attacker infrastructure domain registered", "description": "WHOIS shows api-update-cdn[.]net registered two days before phishing wave.", "category": "initial-access", "source": "Threat intel / WHOIS", "confidence": "uncertain" },
+    { "timestamp": "2026-10-09T08:41:00Z", "end": "2026-10-09T09:03:00Z", "title": "Phishing wave delivered to 14 employees", "description": "Spoofed invoice-themed emails with macro-enabled attachment.", "category": "initial-access", "source": "Email gateway", "machine": "EXCH-01", "confidence": "confirmed" },
+    { "timestamp": "2026-10-09T08:52:00Z", "title": "Employee J. Meyer opened invoice-q3.xlsm", "description": "Attachment opened on WKSTN-114; macros enabled after prompt.", "category": "initial-access", "source": "Outlook PST", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-09T09:01:00Z", "title": "Excel spawned powershell.exe", "description": "Macro executed a decoded PowerShell command via WinRM.", "category": "execution", "source": "Sysmon EID 1", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-09T09:02:00Z", "title": "Stage-2 payload downloaded", "description": "Payload pulled from 198.51.100.44 over HTTPS.", "category": "execution", "source": "Proxy logs", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-09T09:02:30Z", "end": "2026-10-11T06:00:00Z", "title": "Beaconing to C2 domain api-update-cdn[.]net", "description": "Regular 60-second interval beacons from WKSTN-114.", "category": "c2", "source": "EDR telemetry", "machine": "WKSTN-114", "confidence": "probable" },
+    { "timestamp": "2026-10-09T09:14:00Z", "title": "Scheduled task 'OneDriveSync' created", "description": "Persistence via daily task at 09:00 under the user context.", "category": "execution", "source": "Windows Security Log 4698", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-09T13:20:00Z", "title": "Active Directory enumeration (BloodHound)", "description": "SharpHound collection observed from WKSTN-114.", "category": "lateral", "source": "Sysmon EID 1", "machine": "WKSTN-114", "confidence": "probable" },
+    { "timestamp": "2026-10-09T14:05:00Z", "end": "2026-10-09T15:10:00Z", "title": "Authentication spray against SRV-FS-02", "description": "~240 failed logons across 12 accounts.", "category": "lateral", "source": "Windows Security Log 4625", "machine": "SRV-FS-02", "confidence": "uncertain" },
+    { "timestamp": "2026-10-10T02:11:00Z", "title": "Valid credentials used on SRV-FS-02 (jmeyer)", "description": "First successful interactive logon outside business hours.", "category": "lateral", "source": "Windows Security Log 4624", "machine": "SRV-FS-02", "confidence": "confirmed" },
+    { "timestamp": "2026-10-10T02:30:00Z", "title": "SMB copy of Archive_2025.zip to file share", "description": "4.1 GB archive staged to \\\\SRV-FS-02\\Finance$.", "category": "lateral", "source": "File share audit log", "machine": "SRV-FS-02", "confidence": "confirmed" },
+    { "timestamp": "2026-10-10T03:05:00Z", "title": "Second-stage implant on SRV-FS-02", "description": "Beacon signature matched Cobalt Strike profile.", "category": "c2", "source": "EDR telemetry", "machine": "SRV-FS-02", "confidence": "probable" },
+    { "timestamp": "2026-10-10T09:40:00Z", "title": "HR database dump staged in C:\\Temp", "description": "hr_dump.sql created on SRV-FS-02 (compressed 2.3 GB).", "category": "exfil", "source": "Sysmon EID 11", "machine": "SRV-FS-02", "confidence": "confirmed" },
+    { "timestamp": "2026-10-10T10:02:00Z", "end": "2026-10-10T11:52:00Z", "title": "Outbound transfer to 203.0.113.11 (2.3 GB)", "description": "Sustained HTTPS upload well above baseline.", "category": "exfil", "source": "Perimeter firewall", "machine": "SRV-FS-02", "confidence": "probable" },
+    { "timestamp": "2026-10-11T06:00:00Z", "title": "C2 beaconing ceased", "description": "Last observed beacon from WKSTN-114.", "category": "c2", "source": "EDR telemetry", "machine": "WKSTN-114", "confidence": "probable" },
+    { "timestamp": "2026-10-11T07:30:00Z", "title": "EDR alert triggered — investigation started", "description": "Behavioral rule matched staged dump + long beacon session.", "category": "containment", "source": "EDR", "confidence": "confirmed" },
+    { "timestamp": "2026-10-11T08:15:00Z", "title": "Compromised account jmeyer disabled", "description": "AD account disabled and sessions revoked.", "category": "containment", "source": "AD change log", "machine": "DC-01", "confidence": "confirmed" },
+    { "timestamp": "2026-10-11T08:22:00Z", "title": "Known-bad hashes blocked at endpoint policy", "description": "IOC hash list pushed to all endpoints.", "category": "containment", "source": "EDR policy", "confidence": "confirmed" },
+    { "timestamp": "2026-10-11T09:00:00Z", "title": "C2 IPs and domain blocked at firewall", "description": "Sinkholed api-update-cdn[.]net; blocked 198.51.100.44, 203.0.113.11.", "category": "containment", "source": "Perimeter firewall", "machine": "FW-EDGE-01", "confidence": "confirmed" },
+    { "timestamp": "2026-10-11T09:41:00Z", "title": "Scheduled task removed on WKSTN-114", "description": "Persistence mechanism eliminated.", "category": "containment", "source": "EDR", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-11T10:26:00Z", "end": "2026-10-11T13:30:00Z", "title": "WKSTN-114 isolated and reimaged", "description": "Forensic image captured, then rebuilt from gold image.", "category": "containment", "source": "IR log", "machine": "WKSTN-114", "confidence": "confirmed" },
+    { "timestamp": "2026-10-12T10:00:00Z", "title": "Domain-wide forced password reset", "description": "All user credentials reset after exposure assessment.", "category": "containment", "source": "AD change log", "machine": "DC-01", "confidence": "confirmed" },
+    { "timestamp": "2026-10-12T14:30:00Z", "end": "2026-10-13T18:00:00Z", "title": "MFA enrollment completed for remote users", "description": "Conditional Access enforced for all external access.", "category": "containment", "source": "Entra ID sign-in logs", "confidence": "probable" },
+    { "timestamp": "2026-10-13T09:00:00Z", "end": "2026-10-14T09:00:00Z", "title": "Heightened monitoring — no recurrence observed", "description": "24h watch on egress, authentication and endpoint telemetry.", "category": "containment", "source": "SOC watch log", "confidence": "probable" }
+  ]
+}

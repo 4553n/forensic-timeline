@@ -1,0 +1,11 @@
+* text=auto eol=lf
+
+*.html text
+*.md   text
+*.json text
+*.csv  text
+*.js   text
+
+*.png  binary
+*.jpg  binary
+*.pdf  binary
