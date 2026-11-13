@@ -4,10 +4,6 @@ A **standalone, single-file HTML application** that turns forensic event data in
 
 **Version 1.14.0** · [Changelog](CHANGELOG.md) · [MIT License](LICENSE)
 
-> **This is the analyst build.** It has the swimlane, the milestones and the density
-> views, with no management-slide view. Everything else — the layout, the
-> editing, the red-for-malicious coding, the time handling — is the same.
-
 Built for producing the timeline graphic in an executive incident report: curated events (typically < 50), clear layout, and a one-click **Export PNG** (2x scale) that drops straight into Word or PowerPoint.
 
 ## Quick start
