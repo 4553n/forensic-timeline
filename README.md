@@ -6,6 +6,24 @@ A **standalone, single-file HTML application** that turns forensic event data in
 
 Built for producing the timeline graphic in an executive incident report: curated events (typically < 50), clear layout, and a one-click **Export PNG** (2x scale) that drops straight into Word or PowerPoint.
 
+## Screenshots
+
+**Swimlane — one lane per category.** The lanes lay themselves out and read from the upper left, so the earliest event is the top-left one and every later event steps down and to the right.
+
+![Swimlane, lanes per category](docs/screenshots/swimlane-category.png)
+
+**Swimlane — one plate per host.** Each host gets its own plate, framed in the host's colour, with the categories as sub-lanes inside it.
+
+![Swimlane, lanes per machine](docs/screenshots/swimlane-machine.png)
+
+**Milestones — a single axis with event cards.**
+
+![Milestones](docs/screenshots/milestones.png)
+
+**Density — event volume over time, with a zoomable detail band.**
+
+![Density](docs/screenshots/density.png)
+
 ## Quick start
 
 ```
